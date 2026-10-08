@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Comunicação ADVEC</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#2A2B2E;--bg2:#1F2023;--card:#38393D;--blue:#2B80B9;--mut:#A0A5AA;--ok:#4cc38a;--warn:#f2c94c;--bad:#e5645f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#fff;font-family:Poppins,system-ui,sans-serif}
+.wrap{max-width:520px;margin:0 auto;padding:12px 16px 100px}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 0 18px rgba(255,255,255,.04)}
+input,select{width:100%;background:var(--bg2);color:#fff;border:1px solid #4a4c52;border-radius:10px;padding:11px 12px;font:inherit;margin:4px 0 12px}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+label{font-size:.85rem;color:var(--mut)}
+.btn{background:var(--blue);color:#fff;border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer}
+.btn.g{background:var(--bg2)}.btn.r{background:#7a2e2b}.btn.s{padding:6px 10px;font-size:.8rem}.btn.full{width:100%}
+.mut{color:var(--mut)}.ok{color:var(--ok)}.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.chk{display:flex;gap:8px;align-items:center;padding:6px 0;color:#fff;font-size:.92rem}.chk input{width:auto;margin:0}
+.pw{position:relative}.pw button{position:absolute;right:8px;top:9px;background:none;border:0;color:var(--mut);cursor:pointer;font-size:.8rem}
+nav.tabs{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);display:flex;justify-content:space-around;padding:8px 2px calc(8px + env(safe-area-inset-bottom,0px));z-index:5}
+nav.tabs button{background:none;border:0;color:var(--mut);font:inherit;font-size:.72rem;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 6px}
+nav.tabs button.on{color:var(--blue)}nav.tabs span{font-size:1.2rem}
+.bar{height:8px;border-radius:6px;background:#d9dadc;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--warn)}
+.scroll{overflow-x:auto}table{border-collapse:collapse;min-width:560px;width:100%;font-size:.85rem}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #4a4c52;white-space:nowrap}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:20px;z-index:10}
+.pill{display:inline-block;padding:3px 10px;border-radius:99px;background:var(--bg2);font-size:.8rem;margin:3px 4px 3px 0}
+.date{text-align:center;min-width:58px}.date b{font-size:1.8rem;display:block;line-height:1}
+.toast{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:12px;right:12px;max-width:480px;margin:auto;background:var(--blue);padding:12px 14px;border-radius:10px;z-index:20;font-size:.9rem}
+.inner{background:var(--bg2);border-radius:10px;padding:10px 12px;margin-top:8px}
+h2{margin:0 0 10px;font-size:1.25rem}h3{margin:0 0 6px;font-size:1.02rem}
+</style></head>
+<body><div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect}=React;
+const AREAS=['Fotografia','Vídeo','Mesa de Som','PC'];
+const SLOTN={foto:'Fotografia',video:'Vídeo',som:'Mesa de Som',pc:'PC'};
+const SLOT={'Fotografia':'foto','Vídeo':'video','Mesa de Som':'som','PC':'pc'};
+const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const digits=s=>String(s||'').replace(/\D/g,'');
+const ofertadas=c=>Object.values(c.vagas).reduce((a,b)=>a+b,0);
+const livres=c=>ofertadas(c)-c.insc.length;
+const livresDe=(c,k)=>c.vagas[k]-c.insc.filter(i=>SLOT[i.role]===k).length;
+const fmt=d=>d.split('-').reverse().join('/');
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const idadeDe=n=>{if(!n)return '';const h=new Date(),b=new Date(n+'T12:00');let a=h.getFullYear()-b.getFullYear();if(h<new Date(h.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
+const TOK='advec-token';
+const tk=()=>{try{return localStorage.getItem(TOK)||''}catch(e){return ''}};
+const api=async(action,body={})=>{
+ const r=await fetch('/api/app',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tk()},body:JSON.stringify({action,...body})});
+ const j=await r.json().catch(()=>({erro:'Resposta inválida do servidor.'}));
+ if(!r.ok)throw Object.assign(new Error(j.erro||'Erro inesperado.'),{codigo:j.codigo,status:r.status});
+ return j};
+const LOGO='/logo.png';
+const Logo=({h=96})=><div style={{display:'flex',justifyContent:'center',margin:'4px 0 14px'}}><img src={LOGO} alt="Comunicação ADVEC" style={{height:h}}/></div>;
+const Pass=({value,onChange,ph='Senha'})=>{const[s,setS]=useState(false);
+ return <div className="pw"><input type={s?'text':'password'} placeholder={ph} value={value} onChange={onChange} required/><button type="button" onClick={()=>setS(!s)}>{s?'ocultar':'mostrar'}</button></div>};
+const Checks=({title,value,onChange})=><div className="inner" style={{marginBottom:12}}><label>{title}</label>
+ {AREAS.map(a=><label key={a} className="chk"><input type="checkbox" checked={value.includes(a)} onChange={e=>onChange(e.target.checked?[...value,a]:value.filter(x=>x!==a))}/>{a}</label>)}</div>;
+const dparts=d=>{const[y,m,dd]=d.split('-');return{y,m:MESES[+m-1],d:dd}};
+
+function Auth({say,onAuth}){
+ const[mode,setMode]=useState('login');
+ const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:''});
+ const set=k=>e=>setF({...f,[k]:e.target.value});
+ const entrar=async(acao,corpo)=>{try{const j=await api(acao,corpo);try{localStorage.setItem(TOK,j.token)}catch(e){}onAuth()}catch(e){say(e.message)}};
+ const login=e=>{e.preventDefault();entrar('login',{cel:f.cel,senha:f.senha})};
+ const reg=e=>{e.preventDefault();
+  if(digits(f.cel).length<10)return say('Informe o celular com DDD.');
+  if(!f.atua.length||!f.deseja.length)return say('Marque ao menos uma área em "já atua" e uma em "deseja atuar".');
+  entrar('register',{nome:f.nome.trim(),nasc:f.nasc,cel:f.cel,senha:f.senha,atua:f.atua,deseja:f.deseja})};
+ const rec=async e=>{e.preventDefault();try{
+  if(!f.sent){await api('recSend',{cel:f.cel});setF({...f,sent:'1'});say('Se o celular estiver cadastrado, o código foi enviado pelo WhatsApp.')}
+  else{await api('recConfirm',{cel:f.cel,code:f.code,senha:f.senha});say('Senha atualizada. Entre com a nova senha.');setMode('login');setF({...f,sent:'',code:'',senha:''})}}catch(err){say(err.message)}};
+ return <div className="wrap"><Logo h={140}/>
+ {mode==='login'&&<form className="card" onSubmit={login}><h2>Login</h2>
+  <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
+  <label>Senha</label><Pass value={f.senha} onChange={set('senha')}/>
+  <p><a href="#" onClick={e=>{e.preventDefault();setMode('rec')}} style={{color:'#8fc3e6'}}>Esqueceu a senha?</a></p>
+  <div className="row"><button type="button" className="btn g" onClick={()=>setMode('reg')}>Criar conta</button><button className="btn">Entrar</button></div></form>}
+ {mode==='reg'&&<form className="card" onSubmit={reg}><h2>Registro</h2>
+  <label>Nome completo</label><input value={f.nome} onChange={set('nome')} required/>
+  <label>Data de nascimento</label><input type="date" value={f.nasc} onChange={set('nasc')} required/>
+  <label>Celular (será seu login)</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
+  <label>Senha</label><Pass value={f.senha} onChange={set('senha')}/>
+  <Checks title="Qual área você já atua?" value={f.atua} onChange={v=>setF({...f,atua:v})}/>
+  <Checks title="Qual área você deseja atuar (Treinamentos)?" value={f.deseja} onChange={v=>setF({...f,deseja:v})}/>
+  <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">Concluir cadastro</button></div></form>}
+ {mode==='rec'&&<form className="card" onSubmit={rec}><h2>Recuperar senha</h2>
+  <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} disabled={!!f.sent} required/>
+  {f.sent&&<><label>Código recebido</label><input value={f.code} onChange={set('code')} required/><label>Nova senha</label><Pass value={f.senha} onChange={set('senha')}/></>}
+  <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">{f.sent?'Salvar nova senha':'Enviar código'}</button></div></form>}
+ </div>}
+
+function PassForm({act,say}){
+ const[a,setA]=useState('');const[b,setB]=useState('');
+ const go=e=>{e.preventDefault();if(a.length<4)return say('Use ao menos 4 caracteres.');if(a!==b)return say('As senhas não coincidem.');
+  act('trocarSenha',{senha:a},'Senha atualizada.');setA('');setB('')};
+ return <form onSubmit={go}><label>Nova senha</label><Pass value={a} onChange={e=>setA(e.target.value)} ph="Nova senha"/>
+  <label>Confirmar nova senha</label><Pass value={b} onChange={e=>setB(e.target.value)} ph="Confirmar nova senha"/>
+  <button className="btn full">Atualizar senha</button><p className="mut" style={{fontSize:'.78rem',textAlign:'center',margin:'8px 0 0'}}>Não é necessário informar a senha antiga.</p></form>}
+
+function Cultos({user,db,load,say}){
+ const[mes,setMes]=useState(new Date().getMonth());const[ano,setAno]=useState(new Date().getFullYear());const[go,setGo]=useState(false);const[modal,setModal]=useState(false);const[esc,setEsc]=useState(null);
+ const pref=ano+'-'+String(mes+1).padStart(2,'0');
+ const lista=db.cultos.filter(c=>c.data.startsWith(pref)).sort((a,b)=>(a.data+a.hora).localeCompare(b.data+b.hora));
+ const registrar=async(c,area)=>{setEsc(null);
+  try{const j=await api('inscrever',{culto:c.id,role:area});await load();
+   say(j.escala?'Inscrição confirmada! A escala ficou completa e os administradores foram avisados no WhatsApp. 🎉':'Inscrição confirmada como '+area+'! Você receberá um lembrete no WhatsApp 2h antes.')}
+  catch(e){if(e.codigo==='sem_vaga'){await load();setModal(true)}else say(e.message)}};
+ const inscrever=c=>{const opts=user.atua.filter(a=>livresDe(c,SLOT[a])>0);
+  if(!opts.length)return setModal(true);
+  if(opts.length===1)return registrar(c,opts[0]);
+  setEsc({c,opts})};
+ if(!go)return <div className="card"><h2>Seleção de mês e ano</h2>
+  <label>Mês</label><select value={mes} onChange={e=>setMes(+e.target.value)}>{MESES.map((m,i)=><option key={m} value={i}>{m}</option>)}</select>
+  <label>Ano</label><select value={ano} onChange={e=>setAno(+e.target.value)}>{[0,1,2].map(n=>new Date().getFullYear()+n).map(y=><option key={y}>{y}</option>)}</select>
+  <button className="btn full" onClick={()=>setGo(true)}>Avançar</button></div>;
+ return <div><div className="row" style={{marginBottom:12}}><div><h2 style={{margin:0}}>{MESES[mes]} {ano}</h2><span className="mut">{lista.length} culto(s)</span></div><button className="btn g s" onClick={()=>setGo(false)}>Trocar período</button></div>
+ {lista.length===0&&<div className="card mut">Nenhum culto cadastrado neste mês.</div>}
+ {lista.map(c=>{const p=dparts(c.data);const mine=c.insc.find(i=>i.uid===user.id);
+  return <div className="card" key={c.id}><div className="row" style={{flexWrap:'nowrap',alignItems:'flex-start'}}>
+   <div className="date"><span className="mut">{p.m}</span><b>{p.d}</b><span className="mut">{p.y}</span></div>
+   <div style={{flex:1}}><h3>{c.nome}</h3><div className="mut">às {c.hora}h</div>
+    <div style={{marginTop:8,fontSize:'.88rem'}}><span className="ok">{ofertadas(c)}</span> vagas ofertadas · <span className={livres(c)?'ok':'mut'}>{livres(c)}</span> disponíveis
+    <div style={{marginTop:6}}>{Object.keys(SLOTN).filter(k=>c.vagas[k]>0).map(k=>{const n=livresDe(c,k);return <div key={k} className={n?'ok':'mut'}>{n} {SLOTN[k]}{n?'':' (lotada)'}</div>})}</div></div></div></div>
+   <div style={{marginTop:12,textAlign:'right'}}>{mine?<span className="ok">Inscrito como {mine.role} ✓</span>:<button className="btn" onClick={()=>inscrever(c)}>+ Fazer inscrição</button>}</div></div>})}
+ {esc&&<div className="modal" onClick={()=>setEsc(null)}><div className="card" role="dialog" style={{width:'100%',maxWidth:340,textAlign:'center'}} onClick={e=>e.stopPropagation()}>
+  <h3>Em qual função você quer se inscrever?</h3><p className="mut" style={{marginTop:0,fontSize:'.85rem'}}>{esc.c.nome} · {fmt(esc.c.data)}</p>
+  {esc.opts.map(a=><button key={a} className="btn full" style={{marginBottom:8}} onClick={()=>registrar(esc.c,a)}>{a} <span style={{fontWeight:400}}>({livresDe(esc.c,SLOT[a])} vaga{livresDe(esc.c,SLOT[a])>1?'s':''})</span></button>)}
+  <button className="btn g full" onClick={()=>setEsc(null)}>Cancelar</button></div></div>}
+ {modal&&<div className="modal" onClick={()=>setModal(false)}><div className="card" role="alertdialog" style={{maxWidth:340,textAlign:'center'}}><p>Infelizmente não há mais vagas disponíveis para a sua função!</p><button className="btn" onClick={()=>setModal(false)}>Entendi</button></div></div>}</div>}
+
+function Lembretes({user,db}){
+ const[now,setNow]=useState(new Date());
+ useEffect(()=>{const t=setInterval(()=>setNow(new Date()),60000);return()=>clearInterval(t)},[]);
+ const hoje=iso(now),am=iso(new Date(now.getTime()+864e5)),itens=[];
+ const dia=d=>d===hoje?'Hoje':'Amanhã';
+ db.cultos.forEach(c=>{const i=c.insc.find(x=>x.uid===user.id);if(i&&(c.data===hoje||c.data===am))itens.push({k:'c'+c.id,dia:dia(c.data),txt:c.nome+' às '+c.hora,det:'Sua função: '+i.role,q:new Date(c.data+'T'+c.hora),msg:'Lembrete: você está escalado no '+c.nome+' ('+fmt(c.data)+') às '+c.hora+' como '+i.role+'. Chegue com antecedência!'})});
+ db.treinos.forEach(t=>{if(user.deseja.includes(t.area)&&(t.data===hoje||t.data===am))itens.push({k:'t'+t.id,dia:dia(t.data),txt:'Treinamento de '+t.area+' às '+t.hora,det:t.tema,q:new Date(t.data+'T'+t.hora),msg:'Lembrete: treinamento de '+t.area+' ('+fmt(t.data)+') às '+t.hora+' – '+t.tema+'.'})});
+ return <>{itens.filter(it=>it.q-now>-36e5).sort((a,b)=>a.q-b.q).map(it=>{const perto=it.q-now>0&&it.q-now<=72e5;
+  return <div key={it.k} className="card" style={{borderLeft:'4px solid '+(perto?'var(--warn)':'var(--blue)'),padding:'12px 14px'}}>
+   <div className="row"><b>{perto?'⏰ Falta menos de 2 horas':'📅 Você tem agenda'}</b><span className="pill">{it.dia}</span></div>
+   <div>{it.txt}</div><div className="mut" style={{fontSize:'.85rem'}}>{it.det}</div>
+   {it.k[0]==='c'&&<div className="mut" style={{fontSize:'.78rem',marginTop:6}}>Lembrete automático no seu WhatsApp, 2h antes do culto.</div>}</div>})}</>}
+
+function Painel({user,db,act,say}){
+ const[atua,setAtua]=useState(user.atua);const[deseja,setDeseja]=useState(user.deseja);
+ const sess=db.treinos.filter(t=>user.deseja.includes(t.area));const feitas=sess.filter(t=>user.presencas.includes(t.id)).length;
+ const salvar=e=>{e.preventDefault();if(!atua.length||!deseja.length)return say('Marque ao menos uma área em cada pergunta.');
+  act('salvarAreas',{atua,deseja},'Áreas atualizadas.')};
+ return <div><h2>👋 Olá, <span style={{color:'#6fb2dd'}}>{user.nome}</span>!</h2>
+ <Lembretes user={user} db={db}/>
+ <form className="card" onSubmit={salvar}><h3>Perfil de atuação</h3>
+  <Checks title="Qual área você já atua?" value={atua} onChange={setAtua}/>
+  <Checks title="Qual área você deseja atuar (Treinamentos)?" value={deseja} onChange={setDeseja}/>
+  <button className="btn full">Salvar áreas</button></form>
+ <div className="card"><h3>Treinamentos pendentes</h3>{user.deseja.map(a=><span className="pill" key={a} style={{borderLeft:'3px solid var(--warn)'}}>{a}</span>)}
+  {sess.length>0?<><div className="bar"><i style={{width:feitas/sess.length*100+'%'}}/></div><span className="mut" style={{fontSize:'.8rem'}}>{feitas} de {sess.length} aulas confirmadas</span></>:<p className="mut" style={{marginBottom:0}}>Nenhuma aula agendada ainda.</p>}</div>
+ <div className="card"><h3>🛡️ Segurança</h3><PassForm act={act} say={say}/></div></div>}
+
+function Treinos({user,db,act}){
+ const sess=db.treinos.filter(t=>user.deseja.includes(t.area)).sort((a,b)=>(a.data+a.hora).localeCompare(b.data+b.hora));
+ const toggle=id=>act('presenca',{treino:id});
+ return <div><h2>Seus treinamentos</h2>
+ {sess.length===0&&<div className="card mut">Nenhum treinamento disponível agora. Quando a liderança agendar aulas das áreas que você escolheu, elas aparecem aqui.</div>}
+ {sess.map(t=>{const on=user.presencas.includes(t.id);return <div className="card" key={t.id}><div className="row"><h3>{t.area}</h3><span className="mut" style={{fontSize:'.85rem'}}>{fmt(t.data)} às {t.hora}</span></div>
+  <p className="mut" style={{margin:'0 0 10px'}}>{t.tema}</p><button className={'btn s'+(on?' g':'')} onClick={()=>toggle(t.id)}>{on?'Presença confirmada ✓':'Confirmar presença'}</button></div>})}</div>}
+
+function Admin({db,act,user,say}){
+ const[tab,setTab]=useState('cultos');
+ const[nc,setNc]=useState({nome:'',hora:'19:00',data:'',som:1,pc:1,foto:1,video:1});
+ const[q,setQ]=useState('');const[bm,setBm]=useState(new Date().getMonth());const[del,setDel]=useState(null);const[ed,setEd]=useState(null);const[nt,setNt]=useState({area:AREAS[0],tema:'',data:'',hora:'19:00'});const[na,setNa]=useState({nome:'',cel:'',senha:''});
+ const vol=db.users.filter(u=>!u.admin||u.atua.length||u.deseja.length);
+ const novo={nome:'',hora:'19:00',data:'',som:1,pc:1,foto:1,video:1};
+ const editar=c=>{setEd(c.id);setNc({nome:c.nome,hora:c.hora,data:c.data,...c.vagas});window.scrollTo({top:0,behavior:'smooth'})};
+ const cancelar=()=>{setEd(null);setNc(novo)};
+ const addCulto=async e=>{e.preventDefault();const vagas={som:+nc.som,pc:+nc.pc,foto:+nc.foto,video:+nc.video};
+  const r=await act('cultoSalvar',{id:ed,nome:nc.nome,data:nc.data,hora:nc.hora,vagas},ed?'Culto atualizado.':'Culto salvo.');
+  if(r){ed?cancelar():setNc({...nc,nome:'',data:''})}};
+ const cultos=[...db.cultos].sort((a,b)=>(a.data+a.hora).localeCompare(b.data+b.hora));
+ const swap=(c,i,newId)=>{if(newId)act('inscTrocar',{culto:c.id,de:c.insc[i].uid,para:+newId},'Escala atualizada.')};
+ const add=(c,k,id)=>{if(id)act('inscAdd',{culto:c.id,user:+id,role:SLOTN[k]},'Voluntário escalado.')};
+ const modal=del&&<div className="modal" onClick={()=>setDel(null)}><div className="card" role="alertdialog" style={{maxWidth:340,textAlign:'center'}} onClick={e=>e.stopPropagation()}>
+  <p>Remover "{del.nome}" de {fmt(del.data)}?{del.insc.length>0&&' As '+del.insc.length+' inscrições serão apagadas.'}</p>
+  <div className="row" style={{justifyContent:'center'}}><button className="btn g" onClick={()=>setDel(null)}>Cancelar</button>
+  <button className="btn r" onClick={()=>{act('cultoRemover',{id:del.id},'Culto removido.');if(ed===del.id)cancelar();setDel(null)}}>Remover</button></div></div></div>;
+ const niver=db.users.filter(u=>u.nasc&&+u.nasc.slice(5,7)-1===bm).sort((a,b)=>+a.nasc.slice(8)-+b.nasc.slice(8));
+ const found=q.trim()?db.users.filter(u=>!u.admin&&(u.nome.toLowerCase().includes(q.toLowerCase())||u.cel.includes(digits(q))&&digits(q))):[];
+ const tabs=[['cultos','📅','Cultos'],['escala','👥','Escalados'],['users','📋','Usuários'],['treino','📖','Treinos'],['admins','⚙️','Admins']];
+ return <div>
+ {tab==='cultos'&&<div><h2>Inclusão de cultos</h2>
+  <form className="card" onSubmit={addCulto}><label>Nome do culto</label><input value={nc.nome} onChange={e=>setNc({...nc,nome:e.target.value})} required/>
+   <div className="row" style={{gap:8}}><div style={{flex:1}}><label>Data</label><input type="date" value={nc.data} onChange={e=>setNc({...nc,data:e.target.value})} required/></div><div style={{flex:1}}><label>Horário</label><input type="time" value={nc.hora} onChange={e=>setNc({...nc,hora:e.target.value})} required/></div></div>
+   <label>Vagas por função</label><div className="row" style={{gap:8,flexWrap:'nowrap'}}>{[['som','Som'],['pc','PC'],['foto','Foto'],['video','Vídeo']].map(([k,l])=><div key={k} style={{flex:1}}><label>{l}</label><input type="number" min="0" max="9" value={nc[k]} onChange={e=>setNc({...nc,[k]:e.target.value})}/></div>)}</div>
+   <button className="btn full">{ed?'Salvar alterações':'Salvar culto'}</button>{ed&&<button type="button" className="btn g full" style={{marginTop:8}} onClick={cancelar}>Cancelar edição</button>}<p className="mut" style={{fontSize:'.78rem',margin:'8px 0 0'}}>Vagas ofertadas = soma das funções. As disponíveis diminuem a cada inscrição.</p></form>
+  {cultos.map(c=>{const p=dparts(c.data);return <div className="card row" key={c.id}><div><b>{c.nome}</b><div className="mut" style={{fontSize:'.85rem'}}>{p.d}/{c.data.split('-')[1]}/{p.y} às {c.hora} · {livres(c)} de {ofertadas(c)} vagas livres</div></div>
+   <span style={{display:'flex',gap:6}}><button className="btn g s" onClick={()=>editar(c)}>Editar</button><button className="btn r s" onClick={()=>setDel(c)}>Remover</button></span></div>})}</div>}
+ {tab==='escala'&&<div><h2>Usuários agendados</h2>
+  {db.notif.length>0&&<div className="card"><h3>Novas inscrições</h3>{db.notif.map((n,i)=><div key={i} className="mut" style={{fontSize:'.85rem'}}>• {n}</div>)}</div>}
+  {cultos.map(c=><div className="card" key={c.id}><h3>{c.nome} <span className="mut" style={{fontWeight:400,fontSize:'.85rem'}}>{fmt(c.data).slice(0,5)} às {c.hora}</span></h3>
+   <div className="mut" style={{fontSize:'.8rem'}}>{c.insc.length} de {ofertadas(c)} vagas preenchidas</div>
+   {livres(c)===0&&<div className="inner row" style={{borderLeft:'3px solid var(--ok)'}}><span className="ok">✅ Culto lotado</span><button className="btn s" onClick={()=>act('reenviarEscala',{culto:c.id},'Escala enviada aos administradores.')}>Reenviar escala</button></div>}
+   {Object.keys(SLOTN).filter(k=>c.vagas[k]>0).map(k=>{const quem=c.insc.map((i,ix)=>({i,ix})).filter(x=>SLOT[x.i.role]===k);
+    return <div key={k}><div className="mut" style={{fontSize:'.8rem',marginTop:10}}>{SLOTN[k]} ({quem.length}/{c.vagas[k]})</div>
+     {quem.map(({i,ix})=>{const u=db.users.find(x=>x.id===i.uid);if(!u)return null;
+      return <div className="inner" key={i.uid}><div className="row"><span>{u.nome}</span>
+       <span><a href={'tel:+55'+u.cel} aria-label="Ligar" style={{textDecoration:'none',marginRight:10}}>📞</a><button className="btn g s" style={{marginRight:8}} aria-label="Enviar lembrete agora" onClick={()=>act('lembrar',{culto:c.id,user:u.id},'Lembrete enviado.')}>💬</button>
+       <button className="btn r s" aria-label="Remover da escala" onClick={()=>act('inscRemover',{culto:c.id,user:i.uid})}>✕</button></span></div>
+       <select style={{margin:'8px 0 0',padding:'7px 10px',fontSize:'.85rem'}} value="" onChange={e=>swap(c,ix,e.target.value)}><option value="">Trocar por…</option>{vol.filter(v=>v.id!==i.uid).map(v=><option key={v.id} value={v.id}>{v.nome}</option>)}</select></div>})}
+     {quem.length<c.vagas[k]&&<div className="inner mut">Vaga livre<select style={{margin:'8px 0 0',padding:'7px 10px',fontSize:'.85rem'}} value="" onChange={e=>add(c,k,e.target.value)}><option value="">Escalar voluntário…</option>{vol.filter(v=>v.atua.includes(SLOTN[k])).map(v=><option key={v.id} value={v.id}>{v.nome}</option>)}</select></div>}</div>})}</div>)}</div>}
+ {tab==='users'&&<div><h2>Usuários cadastrados</h2>
+  <div className="card"><div className="row"><h3>🎂 Aniversariantes</h3><select style={{width:'auto',margin:0}} value={bm} onChange={e=>setBm(+e.target.value)}>{MESES.map((m,i)=><option key={m} value={i}>{m}</option>)}</select></div>
+   {niver.length===0&&<p className="mut">Nenhum aniversariante neste mês.</p>}
+   {niver.map(u=><div className="inner" key={u.id}><div className="row"><b>{u.nome}</b><span className="ok">dia {u.nasc.slice(8)} · {new Date().getFullYear()-+u.nasc.slice(0,4)} anos</span></div>
+    <div className="mut" style={{fontSize:'.82rem'}}>Nasc. {fmt(u.nasc)} · 📞 {u.cel}<br/>Atua em: {u.atua.join(', ')||'—'}<br/>Treinar em: {u.deseja.join(', ')||'—'}</div></div>)}</div>
+  <div className="card"><div className="scroll"><table><thead><tr><th>Nome</th><th>Nascimento</th><th>Idade</th><th>Celular</th><th>Atua em</th><th>Treinar em</th><th>Perfil</th></tr></thead>
+  <tbody>{db.users.map(u=><tr key={u.id}><td>{u.nome}</td><td>{u.nasc?fmt(u.nasc):'—'}</td><td>{idadeDe(u.nasc)||'—'}</td><td>{u.cel}</td><td>{u.atua.join(', ')||'—'}</td><td>{u.deseja.join(', ')||'—'}</td><td>{u.admin?'Admin':'Voluntário'}</td></tr>)}</tbody></table></div></div></div>}
+ {tab==='treino'&&<div><h2>Treinamentos</h2>
+  <form className="card" onSubmit={async e=>{e.preventDefault();const r=await act('treinoSalvar',nt,'Treinamento agendado.');if(r)setNt({...nt,tema:'',data:''})}}><h3>Agendar treinamento</h3>
+   <label>Área</label><select value={nt.area} onChange={e=>setNt({...nt,area:e.target.value})}>{AREAS.map(a=><option key={a}>{a}</option>)}</select>
+   <label>Tema</label><input value={nt.tema} onChange={e=>setNt({...nt,tema:e.target.value})} required/>
+   <div className="row" style={{gap:8}}><div style={{flex:1}}><label>Data</label><input type="date" value={nt.data} onChange={e=>setNt({...nt,data:e.target.value})} required/></div><div style={{flex:1}}><label>Horário</label><input type="time" value={nt.hora} onChange={e=>setNt({...nt,hora:e.target.value})} required/></div></div>
+   <button className="btn full">Agendar</button></form>
+  {AREAS.map(a=>{const sess=db.treinos.filter(t=>t.area===a).sort((x,y)=>(x.data+x.hora).localeCompare(y.data+y.hora));const alunos=vol.filter(u=>u.deseja.includes(a));
+   return <div className="card" key={a}><div className="row"><h3>{a}</h3><span className="pill">{alunos.length} querem aprender</span></div>
+    {sess.map(t=>{const ok=alunos.filter(u=>u.presencas.includes(t.id));return <div className="inner" key={t.id}><div className="row"><span>{fmt(t.data)} às {t.hora} · {t.tema}</span><button className="btn r s" aria-label="Remover aula" onClick={()=>act('treinoRemover',{id:t.id})}>✕</button></div>
+     <div className="mut" style={{fontSize:'.78rem',margin:'6px 0 2px'}}>{ok.length}/{alunos.length} confirmaram presença</div>
+     {ok.map(u=><span className="pill" key={u.id} style={{borderLeft:'3px solid var(--ok)'}}>✓ {u.nome}</span>)}{ok.length===0&&<span className="mut" style={{fontSize:'.8rem'}}>Ninguém confirmou ainda.</span>}</div>})}
+    {sess.length===0&&<p className="mut" style={{margin:'6px 0'}}>Nenhuma aula agendada.</p>}
+    <div className="mut" style={{fontSize:'.82rem',marginTop:8}}>Alunos:</div>{alunos.length?alunos.map(u=><span className="pill" key={u.id}>{u.nome}</span>):<span className="mut">Ninguém ainda.</span>}</div>})}
+  <div className="card row"><b>Total de interessados</b><b>{vol.reduce((n,u)=>n+u.deseja.length,0)}</b></div></div>}
+ {tab==='admins'&&<div><h2>Gestão de administradores</h2>
+  <div className="card"><h3>Nomear voluntário</h3><input placeholder="Buscar por nome ou celular" value={q} onChange={e=>setQ(e.target.value)}/>
+   {found.map(u=><div className="inner row" key={u.id}><span>{u.nome} <span className="mut">{u.cel}</span></span><button className="btn s" onClick={()=>{act('nomear',{id:u.id},u.nome+' agora é administrador.');setQ('')}}>Nomear</button></div>)}
+   {q.trim()&&!found.length&&<p className="mut">Nenhum voluntário encontrado.</p>}</div>
+  <form className="card" onSubmit={async e=>{e.preventDefault();const r=await act('criarAdmin',na,'Administrador criado.');if(r)setNa({nome:'',cel:'',senha:''})}}>
+   <h3>Criar novo administrador</h3><input placeholder="Nome" value={na.nome} onChange={e=>setNa({...na,nome:e.target.value})} required/>
+   <input placeholder="Celular" inputMode="tel" value={na.cel} onChange={e=>setNa({...na,cel:e.target.value})} required/>
+   <input placeholder="Senha" type="password" value={na.senha} onChange={e=>setNa({...na,senha:e.target.value})} required/><button className="btn full">Criar</button></form>
+  <div className="card"><h3>Alterar minha senha</h3><PassForm act={act} say={say}/></div></div>}
+ <nav className="tabs">{tabs.map(([k,i,l])=><button key={k} className={tab===k?'on':''} onClick={()=>setTab(k)}><span>{i}</span>{l}</button>)}</nav>{modal}</div>}
+
+function App(){
+ const[db,setDb]=useState(null);const[ready,setReady]=useState(false);const[toast,setToast]=useState('');const[tab,setTab]=useState('painel');const[modo,setModo]=useState('admin');
+ const load=async()=>{try{setDb(await api('state'))}catch(e){if(e.status===401){try{localStorage.removeItem(TOK)}catch(x){}setDb(null)}}};
+ useEffect(()=>{(async()=>{if(tk())await load();setReady(true)})()},[]);
+ useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(''),5000);return()=>clearTimeout(t)},[toast]);
+ useEffect(()=>{if(!db)return;const t=setInterval(load,60000);return()=>clearInterval(t)},[!!db]);
+ const act=async(action,body,msg)=>{try{const j=await api(action,body);await load();if(msg)setToast(msg);return j||true}catch(e){setToast(e.message);return null}};
+ const T=toast&&<div className="toast" role="status">{toast}</div>;
+ if(!ready)return <div className="wrap"><Logo/><p className="mut" style={{textAlign:'center'}}>Carregando…</p></div>;
+ if(!db)return <>{T}<Auth say={setToast} onAuth={async()=>{await load();setTab('painel')}}/></>;
+ const user=db.me;
+ const out=<div className="row" style={{marginBottom:4}}>{user.admin?<div style={{display:'flex',gap:6}}>{[['admin','Administrador'],['user','Usuário']].map(([k,l])=><button key={k} className={'btn s'+(modo===k?'':' g')} onClick={()=>setModo(k)}>{l}</button>)}</div>:<span/>}<button className="btn g s" onClick={()=>{try{localStorage.removeItem(TOK)}catch(e){}setDb(null);setModo('admin')}}>Sair</button></div>;
+ if(user.admin&&modo==='admin')return <>{T}<div className="wrap">{out}<Logo/><Admin db={db} act={act} user={user} say={setToast}/></div></>;
+ const tabs=[['insc','✅','Inscrição'],['painel','🧩','Painel'],['treino','📖','Treinamentos']];
+ return <>{T}<div className="wrap">{out}<Logo/>
+  {tab==='insc'&&<Cultos user={user} db={db} load={load} say={setToast}/>}
+  {tab==='painel'&&<Painel user={user} db={db} act={act} say={setToast}/>}
+  {tab==='treino'&&<Treinos user={user} db={db} act={act}/>}</div>
+  <nav className="tabs">{tabs.map(([k,i,l])=><button key={k} className={tab===k?'on':''} onClick={()=>setTab(k)}><span>{i}</span>{l}</button>)}</nav></>}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script></body></html>
