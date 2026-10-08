@@ -2,6 +2,7 @@ import { randomInt } from 'node:crypto';
 import { q, garantirSchema } from '../lib/db.js';
 import { hash, confere, assinar, verificar } from '../lib/auth.js';
 import { enviar } from '../lib/whatsapp.js';
+import { enviarSms, smsConfigurado } from '../lib/sms.js';
 import { AREAS, SLOT, normCel, Erro } from '../lib/util.js';
 import { enviarEscalaSeCompleta, msgLembrete } from '../lib/servico.js';
 
@@ -63,6 +64,10 @@ const PUBLICAS = {
   // Recuperação: código de 6 dígitos enviado por WhatsApp ao número do cadastro
   async recSend(b) {
     const cel = normCel(b.cel);
+    const canal = b.canal === 'sms' ? 'sms' : 'whatsapp';
+    const wppOk = process.env.WHATSAPP_DRY_RUN === '1' || !!(process.env.ZAPI_INSTANCE && process.env.ZAPI_TOKEN && process.env.ZAPI_CLIENT_TOKEN);
+    if (canal === 'sms' ? !smsConfigurado() : !wppOk)
+      throw new Erro(`O envio por ${canal === 'sms' ? 'SMS' : 'WhatsApp'} não está disponível agora. Tente o outro canal ou peça a um administrador para redefinir sua senha.`, 503);
     const [u] = await q('select id from users where cel=$1', [cel]);
     if (u) {
       const [rec] = await q(`select 1 from reset_codes where cel=$1 and expira > now() + interval '14 minutes'`, [cel]); // máx. 1 por minuto
@@ -70,8 +75,9 @@ const PUBLICAS = {
         const code = String(randomInt(100000, 1000000));
         await q(`insert into reset_codes(cel,code_hash,expira) values($1,$2,now()+interval '15 minutes')
           on conflict(cel) do update set code_hash=$2, expira=now()+interval '15 minutes', tentativas=0`, [cel, hash(code)]);
-        try { await enviar(cel, `Seu código para redefinir a senha (Comunicação ADVEC): *${code}*. Vale por 15 minutos.`); }
-        catch (e) { console.error('código WhatsApp:', e.message); }
+        const msg = `Comunicação ADVEC: seu código para redefinir a senha é ${code}. Vale por 15 minutos.`;
+        try { await (canal === 'sms' ? enviarSms(cel, msg) : enviar(cel, msg)); }
+        catch (e) { console.error('código de recuperação:', e.message); }
       }
     }
     return { ok: true }; // mesma resposta exista ou não o celular
@@ -191,6 +197,12 @@ const PRIVADAS = {
     return { ok: true };
   },
   async treinoRemover(u, b) { admin(u); await q('delete from treinos where id=$1', [b.id]); return { ok: true }; },
+  async redefinirSenha(u, b) {
+    admin(u);
+    if (String(b.senha || '').length < 4) throw new Erro('Use ao menos 4 caracteres.');
+    await q('update users set senha_hash=$2 where id=$1', [b.id, hash(b.senha)]);
+    return { ok: true };
+  },
   async nomear(u, b) { admin(u); await q('update users set is_admin=true where id=$1', [b.id]); return { ok: true }; },
   async criarAdmin(u, b) {
     admin(u);
