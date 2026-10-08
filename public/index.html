@@ -64,7 +64,7 @@ const dparts=d=>{const[y,m,dd]=d.split('-');return{y,m:MESES[+m-1],d:dd}};
 
 function Auth({say,onAuth}){
  const[mode,setMode]=useState('login');
- const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:''});
+ const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:'',canal:'whatsapp'});
  const set=k=>e=>setF({...f,[k]:e.target.value});
  const entrar=async(acao,corpo)=>{try{const j=await api(acao,corpo);try{localStorage.setItem(TOK,j.token)}catch(e){}onAuth()}catch(e){say(e.message)}};
  const login=e=>{e.preventDefault();entrar('login',{cel:f.cel,senha:f.senha})};
@@ -73,7 +73,7 @@ function Auth({say,onAuth}){
   if(!f.atua.length||!f.deseja.length)return say('Marque ao menos uma área em "já atua" e uma em "deseja atuar".');
   entrar('register',{nome:f.nome.trim(),nasc:f.nasc,cel:f.cel,senha:f.senha,atua:f.atua,deseja:f.deseja})};
  const rec=async e=>{e.preventDefault();try{
-  if(!f.sent){await api('recSend',{cel:f.cel});setF({...f,sent:'1'});say('Se o celular estiver cadastrado, o código foi enviado pelo WhatsApp.')}
+  if(!f.sent){await api('recSend',{cel:f.cel,canal:f.canal});setF({...f,sent:'1'});say('Se o celular estiver cadastrado, o código foi enviado por '+(f.canal==='sms'?'SMS':'WhatsApp')+'.')}
   else{await api('recConfirm',{cel:f.cel,code:f.code,senha:f.senha});say('Senha atualizada. Entre com a nova senha.');setMode('login');setF({...f,sent:'',code:'',senha:''})}}catch(err){say(err.message)}};
  return <div className="wrap"><Logo h={140}/>
  {mode==='login'&&<form className="card" onSubmit={login}><h2>Login</h2>
@@ -91,7 +91,8 @@ function Auth({say,onAuth}){
   <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">Concluir cadastro</button></div></form>}
  {mode==='rec'&&<form className="card" onSubmit={rec}><h2>Recuperar senha</h2>
   <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} disabled={!!f.sent} required/>
-  {f.sent&&<><label>Código recebido</label><input value={f.code} onChange={set('code')} required/><label>Nova senha</label><Pass value={f.senha} onChange={set('senha')}/></>}
+  {!f.sent&&<div className="inner" style={{marginBottom:12}}><label>Receber o código por</label>{[['whatsapp','WhatsApp'],['sms','SMS']].map(([k,l])=><label key={k} className="chk"><input type="radio" name="canal" checked={f.canal===k} onChange={()=>setF({...f,canal:k})}/>{l}</label>)}</div>}
+  {f.sent&&<><label>Código recebido</label><input value={f.code} onChange={set('code')} required/><label>Nova senha</label><Pass value={f.senha} onChange={set('senha')}/><p style={{marginTop:-4}}><a href="#" style={{color:'#8fc3e6',fontSize:'.85rem'}} onClick={e=>{e.preventDefault();setF({...f,sent:'',code:''})}}>Não recebeu? Escolher outro canal</a></p></>}
   <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">{f.sent?'Salvar nova senha':'Enviar código'}</button></div></form>}
  </div>}
 
@@ -217,8 +218,8 @@ function Admin({db,act,user,say}){
    {niver.length===0&&<p className="mut">Nenhum aniversariante neste mês.</p>}
    {niver.map(u=><div className="inner" key={u.id}><div className="row"><b>{u.nome}</b><span className="ok">dia {u.nasc.slice(8)} · {new Date().getFullYear()-+u.nasc.slice(0,4)} anos</span></div>
     <div className="mut" style={{fontSize:'.82rem'}}>Nasc. {fmt(u.nasc)} · 📞 {u.cel}<br/>Atua em: {u.atua.join(', ')||'—'}<br/>Treinar em: {u.deseja.join(', ')||'—'}</div></div>)}</div>
-  <div className="card"><div className="scroll"><table><thead><tr><th>Nome</th><th>Nascimento</th><th>Idade</th><th>Celular</th><th>Atua em</th><th>Treinar em</th><th>Perfil</th></tr></thead>
-  <tbody>{db.users.map(u=><tr key={u.id}><td>{u.nome}</td><td>{u.nasc?fmt(u.nasc):'—'}</td><td>{idadeDe(u.nasc)||'—'}</td><td>{u.cel}</td><td>{u.atua.join(', ')||'—'}</td><td>{u.deseja.join(', ')||'—'}</td><td>{u.admin?'Admin':'Voluntário'}</td></tr>)}</tbody></table></div></div></div>}
+  <div className="card"><div className="scroll"><table><thead><tr><th>Nome</th><th>Nascimento</th><th>Idade</th><th>Celular</th><th>Atua em</th><th>Treinar em</th><th>Perfil</th><th>Ações</th></tr></thead>
+  <tbody>{db.users.map(u=><tr key={u.id}><td>{u.nome}</td><td>{u.nasc?fmt(u.nasc):'—'}</td><td>{idadeDe(u.nasc)||'—'}</td><td>{u.cel}</td><td>{u.atua.join(', ')||'—'}</td><td>{u.deseja.join(', ')||'—'}</td><td>{u.admin?'Admin':'Voluntário'}</td><td><button className="btn g s" onClick={()=>{const s=prompt('Nova senha para '+u.nome+' (mínimo 4 caracteres):');if(s)act('redefinirSenha',{id:u.id,senha:s},'Senha de '+u.nome+' redefinida.')}}>Redefinir senha</button></td></tr>)}</tbody></table></div></div></div>}
  {tab==='treino'&&<div><h2>Treinamentos</h2>
   <form className="card" onSubmit={async e=>{e.preventDefault();const r=await act('treinoSalvar',nt,'Treinamento agendado.');if(r)setNt({...nt,tema:'',data:''})}}><h3>Agendar treinamento</h3>
    <label>Área</label><select value={nt.area} onChange={e=>setNt({...nt,area:e.target.value})}>{AREAS.map(a=><option key={a}>{a}</option>)}</select>
