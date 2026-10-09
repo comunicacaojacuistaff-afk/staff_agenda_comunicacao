@@ -69,9 +69,9 @@ const PUBLICAS = {
     if (!DATA.test(b.nasc)) throw new Erro('Informe a data de nascimento.');
     const [lim] = await q('select tentativas from reset_codes where cel=$1 and expira > now()', [cel]);
     if (lim && lim.tentativas >= 5) throw new Erro('Muitas tentativas. Tente de novo em 15 minutos.', 429);
-    const [u] = await q('select id,is_admin,(nasc = $2::date) as ok from users where cel=$1', [cel, b.nasc]);
+    const [u] = await q('select id,(nasc = $2::date) as ok,(nasc is null) as sem from users where cel=$1', [cel, b.nasc]);
     const falha = !u ? 'Número de celular não encontrado.'
-      : u.is_admin ? 'Administradores devem pedir a outro administrador para redefinir a senha.'
+      : u.sem ? 'Este cadastro não tem data de nascimento. Peça a um administrador para redefinir a senha.'
       : !u.ok ? 'Data de nascimento incorreta para este número.' : null;
     if (falha) {
       await q(`insert into reset_codes(cel,code_hash,expira,tentativas) values($1,'-',now()+interval '15 minutes',1)
@@ -88,7 +88,7 @@ const PUBLICAS = {
     const uid = verificar(b.token, 'reset');
     if (!uid) throw new Erro('Verificação expirada. Informe o celular e a data de nascimento de novo.');
     if (String(b.senha || '').length < 4) throw new Erro('Use ao menos 4 caracteres na senha.');
-    const r = await q('update users set senha_hash=$2 where id=$1 and not is_admin returning id', [uid, hash(b.senha)]);
+    const r = await q('update users set senha_hash=$2 where id=$1 returning id', [uid, hash(b.senha)]);
     if (!r.length) throw new Erro('Não foi possível alterar a senha.');
     return { ok: true };
   },
@@ -206,6 +206,22 @@ const PRIVADAS = {
     admin(u);
     if (String(b.senha || '').length < 4) throw new Erro('Use ao menos 4 caracteres.');
     await q('update users set senha_hash=$2 where id=$1', [b.id, hash(b.senha)]);
+    return { ok: true };
+  },
+  async rebaixar(u, b) {
+    admin(u);
+    if (Number(b.id) === u.id) throw new Erro('Você não pode remover a si mesmo. Use o botão "Usuário" para alternar a visão.');
+    await q('update users set is_admin=false where id=$1', [b.id]);
+    return { ok: true };
+  },
+  async excluirUsuario(u, b) {
+    admin(u);
+    if (Number(b.id) === u.id) throw new Erro('Você não pode excluir a própria conta.');
+    const [t] = await q('select cel from users where id=$1', [b.id]);
+    if (!t) throw new Erro('Usuário não encontrado.', 404);
+    await q('update cultos set escala_enviada_em=null where id in (select culto_id from inscricoes where user_id=$1)', [b.id]);
+    await q('delete from users where id=$1', [b.id]);
+    await q('delete from reset_codes where cel=$1', [t.cel]);
     return { ok: true };
   },
   async nomear(u, b) { admin(u); await q('update users set is_admin=true where id=$1', [b.id]); return { ok: true }; },
