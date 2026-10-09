@@ -66,17 +66,17 @@ const dparts=d=>{const[y,m,dd]=d.split('-');return{y,m:MESES[+m-1],d:dd}};
 
 function Auth({say,onAuth}){
  const[mode,setMode]=useState('login');
- const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:'',email:''});
+ const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:'',senha2:''});
  const set=k=>e=>setF({...f,[k]:e.target.value});
  const entrar=async(acao,corpo)=>{try{const j=await api(acao,corpo);try{localStorage.setItem(TOK,j.token)}catch(e){}onAuth()}catch(e){say(e.message)}};
  const login=e=>{e.preventDefault();entrar('login',{cel:f.cel,senha:f.senha})};
  const reg=e=>{e.preventDefault();
   if(digits(f.cel).length<10)return say('Informe o celular com DDD.');
   if(!f.atua.length||!f.deseja.length)return say('Marque ao menos uma área em "já atua" e uma em "deseja atuar".');
-  entrar('register',{nome:f.nome.trim(),nasc:f.nasc,cel:f.cel,email:f.email,senha:f.senha,atua:f.atua,deseja:f.deseja})};
- const rec=async e=>{e.preventDefault();try{
-  if(!f.sent){await api('recSend',{email:f.email});setF({...f,sent:'1'});say('Se o e-mail estiver cadastrado, o código foi enviado. Confira também a caixa de spam.')}
-  else{await api('recConfirm',{email:f.email,code:f.code,senha:f.senha});say('Senha atualizada. Entre com a nova senha.');setMode('login');setF({...f,sent:'',code:'',senha:''})}}catch(err){say(err.message)}};
+  entrar('register',{nome:f.nome.trim(),nasc:f.nasc,cel:f.cel,senha:f.senha,atua:f.atua,deseja:f.deseja})};
+ const rec=async e=>{e.preventDefault();
+  if(f.senha!==f.senha2)return say('As senhas não coincidem.');
+  try{await api('recSenha',{cel:f.cel,nasc:f.nasc,senha:f.senha});say('Senha atualizada. Entre com a nova senha.');setMode('login');setF({...f,senha:'',senha2:''})}catch(err){say(err.message)}};
  return <div className="wrap"><Logo h={140}/>
  {mode==='login'&&<form className="card" onSubmit={login}><h2>Login</h2>
   <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
@@ -87,15 +87,17 @@ function Auth({say,onAuth}){
   <label>Nome completo</label><input value={f.nome} onChange={set('nome')} required/>
   <label>Data de nascimento</label><input type="date" value={f.nasc} onChange={set('nasc')} required/>
   <label>Celular (será seu login)</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
-  <label>E-mail (para recuperar a senha)</label><input type="email" value={f.email} onChange={set('email')} required/>
   <label>Senha</label><Pass value={f.senha} onChange={set('senha')}/>
   <Checks title="Qual área você já atua?" value={f.atua} onChange={v=>setF({...f,atua:v})}/>
   <Checks title="Qual área você deseja atuar (Treinamentos)?" value={f.deseja} onChange={v=>setF({...f,deseja:v})}/>
   <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">Concluir cadastro</button></div></form>}
 {mode==='rec'&&<form className="card" onSubmit={rec}><h2>Recuperar senha</h2>
-  <label>E-mail cadastrado</label><input type="email" value={f.email} onChange={set('email')} disabled={!!f.sent} required/>
-  {f.sent&&<><label>Código recebido por e-mail</label><input inputMode="numeric" value={f.code} onChange={set('code')} required/><label>Nova senha</label><Pass value={f.senha} onChange={set('senha')}/><p style={{marginTop:-4}}><a href="#" style={{color:'#8fc3e6',fontSize:'.85rem'}} onClick={e=>{e.preventDefault();setF({...f,sent:'',code:''})}}>Não recebeu? Enviar de novo</a></p></>}
-  <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">{f.sent?'Salvar nova senha':'Enviar código'}</button></div></form>}
+  <p className="mut" style={{marginTop:0,fontSize:'.85rem'}}>Informe o celular e a data de nascimento do seu cadastro.</p>
+  <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
+  <label>Data de nascimento</label><input type="date" value={f.nasc} onChange={set('nasc')} required/>
+  <label>Nova senha</label><Pass value={f.senha} onChange={set('senha')}/>
+  <label>Confirmar nova senha</label><Pass value={f.senha2} onChange={set('senha2')} ph="Confirmar senha"/>
+  <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">Salvar nova senha</button></div></form>}
  </div>}
 
 function PassForm({act,say}){
@@ -151,7 +153,7 @@ function Lembretes({user,db}){
    {it.k[0]==='c'&&<div className="mut" style={{fontSize:'.78rem',marginTop:6}}>Lembrete automático no seu WhatsApp, 2h antes do culto.</div>}</div>})}</>}
 
 function Painel({user,db,act,say}){
- const[pf,setPf]=useState({nome:user.nome,nasc:user.nasc||'',cel:user.cel,email:user.email||''});const[atua,setAtua]=useState(user.atua);const[deseja,setDeseja]=useState(user.deseja);
+ const[pf,setPf]=useState({nome:user.nome,nasc:user.nasc||'',cel:user.cel});const[atua,setAtua]=useState(user.atua);const[deseja,setDeseja]=useState(user.deseja);
  const sess=db.treinos.filter(t=>user.deseja.includes(t.area));const feitas=sess.filter(t=>user.presencas.includes(t.id)).length;
  const salvarDados=async e=>{e.preventDefault();await act('salvarPerfil',pf,'Dados atualizados.')};
  const salvar=e=>{e.preventDefault();if(!atua.length||!deseja.length)return say('Marque ao menos uma área em cada pergunta.');
@@ -162,7 +164,6 @@ function Painel({user,db,act,say}){
   <label>Nome completo</label><input value={pf.nome} onChange={e=>setPf({...pf,nome:e.target.value})} required/>
   <label>Data de nascimento</label><input type="date" value={pf.nasc} onChange={e=>setPf({...pf,nasc:e.target.value})} required={!user.admin}/>
   <label>Celular (seu login)</label><input inputMode="tel" value={pf.cel} onChange={e=>setPf({...pf,cel:e.target.value})} required/>
-  <label>E-mail (recuperação de senha)</label><input type="email" value={pf.email} onChange={e=>setPf({...pf,email:e.target.value})} required/>
   <button className="btn full">Salvar dados</button></form>
  <form className="card" onSubmit={salvar}><h3>Perfil de atuação</h3>
   <Checks title="Qual área você já atua?" value={atua} onChange={setAtua}/>
@@ -227,8 +228,8 @@ function Admin({db,act,user,say}){
    {niver.length===0&&<p className="mut">Nenhum aniversariante neste mês.</p>}
    {niver.map(u=><div className="inner" key={u.id}><div className="row"><b>{u.nome}</b><span className="ok">dia {u.nasc.slice(8)} · {new Date().getFullYear()-+u.nasc.slice(0,4)} anos</span></div>
     <div className="mut" style={{fontSize:'.82rem'}}>Nasc. {fmt(u.nasc)} · 📞 {u.cel}<br/>Atua em: {u.atua.join(', ')||'—'}<br/>Treinar em: {u.deseja.join(', ')||'—'}</div></div>)}</div>
-  <div className="card"><div className="scroll"><table><thead><tr><th>Nome</th><th>Nascimento</th><th>Idade</th><th>Celular</th><th>E-mail</th><th>Atua em</th><th>Treinar em</th><th>Perfil</th><th>Ações</th></tr></thead>
-  <tbody>{db.users.map(u=><tr key={u.id}><td>{u.nome}</td><td>{u.nasc?fmt(u.nasc):'—'}</td><td>{idadeDe(u.nasc)||'—'}</td><td>{u.cel}</td><td>{u.email||'—'}</td><td>{u.atua.join(', ')||'—'}</td><td>{u.deseja.join(', ')||'—'}</td><td>{u.admin?'Admin':'Voluntário'}</td><td><button className="btn g s" onClick={()=>{const s=prompt('Nova senha para '+u.nome+' (mínimo 4 caracteres):');if(s)act('redefinirSenha',{id:u.id,senha:s},'Senha de '+u.nome+' redefinida.')}}>Redefinir senha</button></td></tr>)}</tbody></table></div></div></div>}
+  <div className="card"><div className="scroll"><table><thead><tr><th>Nome</th><th>Nascimento</th><th>Idade</th><th>Celular</th><th>Atua em</th><th>Treinar em</th><th>Perfil</th><th>Ações</th></tr></thead>
+  <tbody>{db.users.map(u=><tr key={u.id}><td>{u.nome}</td><td>{u.nasc?fmt(u.nasc):'—'}</td><td>{idadeDe(u.nasc)||'—'}</td><td>{u.cel}</td><td>{u.atua.join(', ')||'—'}</td><td>{u.deseja.join(', ')||'—'}</td><td>{u.admin?'Admin':'Voluntário'}</td><td><button className="btn g s" onClick={()=>{const s=prompt('Nova senha para '+u.nome+' (mínimo 4 caracteres):');if(s)act('redefinirSenha',{id:u.id,senha:s},'Senha de '+u.nome+' redefinida.')}}>Redefinir senha</button></td></tr>)}</tbody></table></div></div></div>}
  {tab==='treino'&&<div><h2>Treinamentos</h2>
   <form className="card" onSubmit={async e=>{e.preventDefault();const r=await act('treinoSalvar',nt,'Treinamento agendado.');if(r)setNt({...nt,tema:'',data:''})}}><h3>Agendar treinamento</h3>
    <label>Área</label><select value={nt.area} onChange={e=>setNt({...nt,area:e.target.value})}>{AREAS.map(a=><option key={a}>{a}</option>)}</select>
