@@ -32,9 +32,8 @@ App completo para Vercel + Neon Postgres, com WhatsApp automático (Z-API).
 - O GitHub pode atrasar execuções agendadas em alguns minutos, e pausa agendamentos de repositórios sem atividade por 60 dias; o cron-job.org é uma alternativa mais pontual.
 - Para rodar local: `npm i -g vercel`, `vercel dev` (com as variáveis em `.env`).
 
-## E-mail de recuperação (Brevo, grátis)
-1. Crie conta em brevo.com (o plano gratuito inclui envio transacional, até 300 e-mails por dia).
-2. Confirme um e-mail remetente em *Senders*, *Domains & Dedicated IPs → Senders* (ou nome parecido): vai chegar um link de confirmação.
-3. Em *SMTP & API → API Keys*, crie uma chave.
-4. Na Vercel, crie `BREVO_API_KEY` (a chave), `EMAIL_REMETENTE` (o e-mail confirmado) e, se quiser, `ADMIN_EMAIL`. Faça *Redeploy*.
-5. Com `WHATSAPP_DRY_RUN=1` o e-mail não é enviado: o código aparece nos Logs como `[EMAIL TESTE]`.
+## E-mail de recuperação (Gmail, grátis)
+1. Use uma conta Gmail da igreja/ministério. Em myaccount.google.com → Segurança, ative a **verificação em duas etapas**.
+2. Ainda em Segurança, procure **Senhas de app**, crie uma (nome: ADVEC) e copie as 16 letras.
+3. Na Vercel, crie `GMAIL_USER` (o e-mail completo) e `GMAIL_APP_PASSWORD` (as 16 letras). Faça *Redeploy*.
+4. Com `WHATSAPP_DRY_RUN=1` o e-mail não é enviado: o código aparece nos Logs como `[EMAIL TESTE]`. Para enviar de verdade, troque para `0` e faça *Redeploy*.
