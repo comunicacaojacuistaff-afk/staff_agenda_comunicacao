@@ -55,6 +55,8 @@ const api=async(action,body={})=>{
  if(!r.ok)throw Object.assign(new Error(j.erro||'Erro inesperado.'),{codigo:j.codigo,status:r.status});
  return j};
 const LOGO='/logo.png';
+const turno=h=>{const m=+h.slice(0,2);return m<12?{t:'☀️ MANHÃ',bg:'#f2c94c',fg:'#1F2023'}:m>=18?{t:'🌙 NOITE',bg:'#5b6bd6',fg:'#fff'}:null};
+const Turno=({hora})=>{const x=turno(hora);return x?<span style={{display:'inline-block',background:x.bg,color:x.fg,fontWeight:800,fontSize:'.85rem',letterSpacing:'.06em',padding:'4px 12px',borderRadius:99}}>{x.t}</span>:null};
 const Logo=({h=96})=><div style={{display:'flex',justifyContent:'center',margin:'4px 0 14px'}}><img src={LOGO} alt="Comunicação ADVEC" style={{height:h}}/></div>;
 const Pass=({value,onChange,ph='Senha'})=>{const[s,setS]=useState(false);
  return <div className="pw"><input type={s?'text':'password'} placeholder={ph} value={value} onChange={onChange} required/><button type="button" onClick={()=>setS(!s)}>{s?'ocultar':'mostrar'}</button></div>};
@@ -64,17 +66,17 @@ const dparts=d=>{const[y,m,dd]=d.split('-');return{y,m:MESES[+m-1],d:dd}};
 
 function Auth({say,onAuth}){
  const[mode,setMode]=useState('login');
- const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:'',canal:'whatsapp'});
+ const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:'',email:''});
  const set=k=>e=>setF({...f,[k]:e.target.value});
  const entrar=async(acao,corpo)=>{try{const j=await api(acao,corpo);try{localStorage.setItem(TOK,j.token)}catch(e){}onAuth()}catch(e){say(e.message)}};
  const login=e=>{e.preventDefault();entrar('login',{cel:f.cel,senha:f.senha})};
  const reg=e=>{e.preventDefault();
   if(digits(f.cel).length<10)return say('Informe o celular com DDD.');
   if(!f.atua.length||!f.deseja.length)return say('Marque ao menos uma área em "já atua" e uma em "deseja atuar".');
-  entrar('register',{nome:f.nome.trim(),nasc:f.nasc,cel:f.cel,senha:f.senha,atua:f.atua,deseja:f.deseja})};
+  entrar('register',{nome:f.nome.trim(),nasc:f.nasc,cel:f.cel,email:f.email,senha:f.senha,atua:f.atua,deseja:f.deseja})};
  const rec=async e=>{e.preventDefault();try{
-  if(!f.sent){await api('recSend',{cel:f.cel,canal:f.canal});setF({...f,sent:'1'});say('Se o celular estiver cadastrado, o código foi enviado por '+(f.canal==='sms'?'SMS':'WhatsApp')+'.')}
-  else{await api('recConfirm',{cel:f.cel,code:f.code,senha:f.senha});say('Senha atualizada. Entre com a nova senha.');setMode('login');setF({...f,sent:'',code:'',senha:''})}}catch(err){say(err.message)}};
+  if(!f.sent){await api('recSend',{email:f.email});setF({...f,sent:'1'});say('Se o e-mail estiver cadastrado, o código foi enviado. Confira também a caixa de spam.')}
+  else{await api('recConfirm',{email:f.email,code:f.code,senha:f.senha});say('Senha atualizada. Entre com a nova senha.');setMode('login');setF({...f,sent:'',code:'',senha:''})}}catch(err){say(err.message)}};
  return <div className="wrap"><Logo h={140}/>
  {mode==='login'&&<form className="card" onSubmit={login}><h2>Login</h2>
   <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
@@ -85,14 +87,14 @@ function Auth({say,onAuth}){
   <label>Nome completo</label><input value={f.nome} onChange={set('nome')} required/>
   <label>Data de nascimento</label><input type="date" value={f.nasc} onChange={set('nasc')} required/>
   <label>Celular (será seu login)</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
+  <label>E-mail (para recuperar a senha)</label><input type="email" value={f.email} onChange={set('email')} required/>
   <label>Senha</label><Pass value={f.senha} onChange={set('senha')}/>
   <Checks title="Qual área você já atua?" value={f.atua} onChange={v=>setF({...f,atua:v})}/>
   <Checks title="Qual área você deseja atuar (Treinamentos)?" value={f.deseja} onChange={v=>setF({...f,deseja:v})}/>
   <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">Concluir cadastro</button></div></form>}
- {mode==='rec'&&<form className="card" onSubmit={rec}><h2>Recuperar senha</h2>
-  <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} disabled={!!f.sent} required/>
-  {!f.sent&&<div className="inner" style={{marginBottom:12}}><label>Receber o código por</label>{[['whatsapp','WhatsApp'],['sms','SMS']].map(([k,l])=><label key={k} className="chk"><input type="radio" name="canal" checked={f.canal===k} onChange={()=>setF({...f,canal:k})}/>{l}</label>)}</div>}
-  {f.sent&&<><label>Código recebido</label><input value={f.code} onChange={set('code')} required/><label>Nova senha</label><Pass value={f.senha} onChange={set('senha')}/><p style={{marginTop:-4}}><a href="#" style={{color:'#8fc3e6',fontSize:'.85rem'}} onClick={e=>{e.preventDefault();setF({...f,sent:'',code:''})}}>Não recebeu? Escolher outro canal</a></p></>}
+{mode==='rec'&&<form className="card" onSubmit={rec}><h2>Recuperar senha</h2>
+  <label>E-mail cadastrado</label><input type="email" value={f.email} onChange={set('email')} disabled={!!f.sent} required/>
+  {f.sent&&<><label>Código recebido por e-mail</label><input inputMode="numeric" value={f.code} onChange={set('code')} required/><label>Nova senha</label><Pass value={f.senha} onChange={set('senha')}/><p style={{marginTop:-4}}><a href="#" style={{color:'#8fc3e6',fontSize:'.85rem'}} onClick={e=>{e.preventDefault();setF({...f,sent:'',code:''})}}>Não recebeu? Enviar de novo</a></p></>}
   <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">{f.sent?'Salvar nova senha':'Enviar código'}</button></div></form>}
  </div>}
 
@@ -125,7 +127,7 @@ function Cultos({user,db,load,say}){
  {lista.map(c=>{const p=dparts(c.data);const mine=c.insc.find(i=>i.uid===user.id);
   return <div className="card" key={c.id}><div className="row" style={{flexWrap:'nowrap',alignItems:'flex-start'}}>
    <div className="date"><span className="mut">{p.m}</span><b>{p.d}</b><span className="mut">{p.y}</span></div>
-   <div style={{flex:1}}><h3>{c.nome}</h3><div className="mut">às {c.hora}h</div>
+   <div style={{flex:1}}><h3 style={{marginBottom:4}}>{c.nome}</h3><div style={{marginBottom:6}}><Turno hora={c.hora}/></div><div className="mut">às {c.hora}h</div>
     <div style={{marginTop:8,fontSize:'.88rem'}}><span className="ok">{ofertadas(c)}</span> vagas ofertadas · <span className={livres(c)?'ok':'mut'}>{livres(c)}</span> disponíveis
     <div style={{marginTop:6}}>{Object.keys(SLOTN).filter(k=>c.vagas[k]>0).map(k=>{const n=livresDe(c,k);return <div key={k} className={n?'ok':'mut'}>{n} {SLOTN[k]}{n?'':' (lotada)'}</div>})}</div></div></div></div>
    <div style={{marginTop:12,textAlign:'right'}}>{mine?<span className="ok">Inscrito como {mine.role} ✓</span>:<button className="btn" onClick={()=>inscrever(c)}>+ Fazer inscrição</button>}</div></div>})}
@@ -149,12 +151,19 @@ function Lembretes({user,db}){
    {it.k[0]==='c'&&<div className="mut" style={{fontSize:'.78rem',marginTop:6}}>Lembrete automático no seu WhatsApp, 2h antes do culto.</div>}</div>})}</>}
 
 function Painel({user,db,act,say}){
- const[atua,setAtua]=useState(user.atua);const[deseja,setDeseja]=useState(user.deseja);
+ const[pf,setPf]=useState({nome:user.nome,nasc:user.nasc||'',cel:user.cel,email:user.email||''});const[atua,setAtua]=useState(user.atua);const[deseja,setDeseja]=useState(user.deseja);
  const sess=db.treinos.filter(t=>user.deseja.includes(t.area));const feitas=sess.filter(t=>user.presencas.includes(t.id)).length;
+ const salvarDados=async e=>{e.preventDefault();await act('salvarPerfil',pf,'Dados atualizados.')};
  const salvar=e=>{e.preventDefault();if(!atua.length||!deseja.length)return say('Marque ao menos uma área em cada pergunta.');
   act('salvarAreas',{atua,deseja},'Áreas atualizadas.')};
  return <div><h2>👋 Olá, <span style={{color:'#6fb2dd'}}>{user.nome}</span>!</h2>
  <Lembretes user={user} db={db}/>
+ <form className="card" onSubmit={salvarDados}><h3>Meus dados</h3>
+  <label>Nome completo</label><input value={pf.nome} onChange={e=>setPf({...pf,nome:e.target.value})} required/>
+  <label>Data de nascimento</label><input type="date" value={pf.nasc} onChange={e=>setPf({...pf,nasc:e.target.value})} required={!user.admin}/>
+  <label>Celular (seu login)</label><input inputMode="tel" value={pf.cel} onChange={e=>setPf({...pf,cel:e.target.value})} required/>
+  <label>E-mail (recuperação de senha)</label><input type="email" value={pf.email} onChange={e=>setPf({...pf,email:e.target.value})} required/>
+  <button className="btn full">Salvar dados</button></form>
  <form className="card" onSubmit={salvar}><h3>Perfil de atuação</h3>
   <Checks title="Qual área você já atua?" value={atua} onChange={setAtua}/>
   <Checks title="Qual área você deseja atuar (Treinamentos)?" value={deseja} onChange={setDeseja}/>
@@ -198,11 +207,11 @@ function Admin({db,act,user,say}){
    <div className="row" style={{gap:8}}><div style={{flex:1}}><label>Data</label><input type="date" value={nc.data} onChange={e=>setNc({...nc,data:e.target.value})} required/></div><div style={{flex:1}}><label>Horário</label><input type="time" value={nc.hora} onChange={e=>setNc({...nc,hora:e.target.value})} required/></div></div>
    <label>Vagas por função</label><div className="row" style={{gap:8,flexWrap:'nowrap'}}>{[['som','Som'],['pc','PC'],['foto','Foto'],['video','Vídeo']].map(([k,l])=><div key={k} style={{flex:1}}><label>{l}</label><input type="number" min="0" max="9" value={nc[k]} onChange={e=>setNc({...nc,[k]:e.target.value})}/></div>)}</div>
    <button className="btn full">{ed?'Salvar alterações':'Salvar culto'}</button>{ed&&<button type="button" className="btn g full" style={{marginTop:8}} onClick={cancelar}>Cancelar edição</button>}<p className="mut" style={{fontSize:'.78rem',margin:'8px 0 0'}}>Vagas ofertadas = soma das funções. As disponíveis diminuem a cada inscrição.</p></form>
-  {cultos.map(c=>{const p=dparts(c.data);return <div className="card row" key={c.id}><div><b>{c.nome}</b><div className="mut" style={{fontSize:'.85rem'}}>{p.d}/{c.data.split('-')[1]}/{p.y} às {c.hora} · {livres(c)} de {ofertadas(c)} vagas livres</div></div>
+  {cultos.map(c=>{const p=dparts(c.data);return <div className="card row" key={c.id}><div><b>{c.nome}</b> <Turno hora={c.hora}/><div className="mut" style={{fontSize:'.85rem'}}>{p.d}/{c.data.split('-')[1]}/{p.y} às {c.hora} · {livres(c)} de {ofertadas(c)} vagas livres</div></div>
    <span style={{display:'flex',gap:6}}><button className="btn g s" onClick={()=>editar(c)}>Editar</button><button className="btn r s" onClick={()=>setDel(c)}>Remover</button></span></div>})}</div>}
  {tab==='escala'&&<div><h2>Usuários agendados</h2>
   {db.notif.length>0&&<div className="card"><h3>Novas inscrições</h3>{db.notif.map((n,i)=><div key={i} className="mut" style={{fontSize:'.85rem'}}>• {n}</div>)}</div>}
-  {cultos.map(c=><div className="card" key={c.id}><h3>{c.nome} <span className="mut" style={{fontWeight:400,fontSize:'.85rem'}}>{fmt(c.data).slice(0,5)} às {c.hora}</span></h3>
+  {cultos.map(c=><div className="card" key={c.id}><h3>{c.nome} <Turno hora={c.hora}/> <span className="mut" style={{fontWeight:400,fontSize:'.85rem'}}>{fmt(c.data).slice(0,5)} às {c.hora}</span></h3>
    <div className="mut" style={{fontSize:'.8rem'}}>{c.insc.length} de {ofertadas(c)} vagas preenchidas</div>
    {livres(c)===0&&<div className="inner row" style={{borderLeft:'3px solid var(--ok)'}}><span className="ok">✅ Culto lotado</span><button className="btn s" onClick={()=>act('reenviarEscala',{culto:c.id},'Escala enviada aos administradores.')}>Reenviar escala</button></div>}
    {Object.keys(SLOTN).filter(k=>c.vagas[k]>0).map(k=>{const quem=c.insc.map((i,ix)=>({i,ix})).filter(x=>SLOT[x.i.role]===k);
@@ -218,8 +227,8 @@ function Admin({db,act,user,say}){
    {niver.length===0&&<p className="mut">Nenhum aniversariante neste mês.</p>}
    {niver.map(u=><div className="inner" key={u.id}><div className="row"><b>{u.nome}</b><span className="ok">dia {u.nasc.slice(8)} · {new Date().getFullYear()-+u.nasc.slice(0,4)} anos</span></div>
     <div className="mut" style={{fontSize:'.82rem'}}>Nasc. {fmt(u.nasc)} · 📞 {u.cel}<br/>Atua em: {u.atua.join(', ')||'—'}<br/>Treinar em: {u.deseja.join(', ')||'—'}</div></div>)}</div>
-  <div className="card"><div className="scroll"><table><thead><tr><th>Nome</th><th>Nascimento</th><th>Idade</th><th>Celular</th><th>Atua em</th><th>Treinar em</th><th>Perfil</th><th>Ações</th></tr></thead>
-  <tbody>{db.users.map(u=><tr key={u.id}><td>{u.nome}</td><td>{u.nasc?fmt(u.nasc):'—'}</td><td>{idadeDe(u.nasc)||'—'}</td><td>{u.cel}</td><td>{u.atua.join(', ')||'—'}</td><td>{u.deseja.join(', ')||'—'}</td><td>{u.admin?'Admin':'Voluntário'}</td><td><button className="btn g s" onClick={()=>{const s=prompt('Nova senha para '+u.nome+' (mínimo 4 caracteres):');if(s)act('redefinirSenha',{id:u.id,senha:s},'Senha de '+u.nome+' redefinida.')}}>Redefinir senha</button></td></tr>)}</tbody></table></div></div></div>}
+  <div className="card"><div className="scroll"><table><thead><tr><th>Nome</th><th>Nascimento</th><th>Idade</th><th>Celular</th><th>E-mail</th><th>Atua em</th><th>Treinar em</th><th>Perfil</th><th>Ações</th></tr></thead>
+  <tbody>{db.users.map(u=><tr key={u.id}><td>{u.nome}</td><td>{u.nasc?fmt(u.nasc):'—'}</td><td>{idadeDe(u.nasc)||'—'}</td><td>{u.cel}</td><td>{u.email||'—'}</td><td>{u.atua.join(', ')||'—'}</td><td>{u.deseja.join(', ')||'—'}</td><td>{u.admin?'Admin':'Voluntário'}</td><td><button className="btn g s" onClick={()=>{const s=prompt('Nova senha para '+u.nome+' (mínimo 4 caracteres):');if(s)act('redefinirSenha',{id:u.id,senha:s},'Senha de '+u.nome+' redefinida.')}}>Redefinir senha</button></td></tr>)}</tbody></table></div></div></div>}
  {tab==='treino'&&<div><h2>Treinamentos</h2>
   <form className="card" onSubmit={async e=>{e.preventDefault();const r=await act('treinoSalvar',nt,'Treinamento agendado.');if(r)setNt({...nt,tema:'',data:''})}}><h3>Agendar treinamento</h3>
    <label>Área</label><select value={nt.area} onChange={e=>setNt({...nt,area:e.target.value})}>{AREAS.map(a=><option key={a}>{a}</option>)}</select>
