@@ -8,7 +8,7 @@ App completo para Vercel + Neon Postgres, com WhatsApp automático (Z-API).
 ## O que é automático
 - **Escala completa:** quando a última vaga de um culto é preenchida, a escala (culto, data, hora, nomes e funções) vai para **todos os administradores**, no número do cadastro de cada um. Se alguém sair e ela lotar de novo, é enviada outra vez.
 - **Lembrete:** cada voluntário escalado recebe no **próprio número** uma mensagem a partir de 2 h antes do culto (horário de Brasília). Quem se inscreve dentro dessa janela recebe no ciclo seguinte.
-- **Recuperar senha:** o código de 6 dígitos vai por WhatsApp para o número do cadastro (vale 15 min, 5 tentativas).
+- **Recuperar senha:** o código de 6 dígitos vai por **e-mail** (vale 15 min, 5 tentativas). Quem não tiver acesso ao e-mail pede ao administrador (aba Usuários → *Redefinir senha*).
 
 ## Publicar
 1. Suba esta pasta para um repositório no **GitHub**.
@@ -31,3 +31,10 @@ App completo para Vercel + Neon Postgres, com WhatsApp automático (Z-API).
 - Z-API é paga e usa o WhatsApp comum: mantenha só mensagens esperadas e baixo volume (risco de bloqueio do número). Para outro serviço, edite apenas `lib/whatsapp.js`.
 - O GitHub pode atrasar execuções agendadas em alguns minutos, e pausa agendamentos de repositórios sem atividade por 60 dias; o cron-job.org é uma alternativa mais pontual.
 - Para rodar local: `npm i -g vercel`, `vercel dev` (com as variáveis em `.env`).
+
+## E-mail de recuperação (Brevo, grátis)
+1. Crie conta em brevo.com (o plano gratuito inclui envio transacional, até 300 e-mails por dia).
+2. Confirme um e-mail remetente em *Senders*, *Domains & Dedicated IPs → Senders* (ou nome parecido): vai chegar um link de confirmação.
+3. Em *SMTP & API → API Keys*, crie uma chave.
+4. Na Vercel, crie `BREVO_API_KEY` (a chave), `EMAIL_REMETENTE` (o e-mail confirmado) e, se quiser, `ADMIN_EMAIL`. Faça *Redeploy*.
+5. Com `WHATSAPP_DRY_RUN=1` o e-mail não é enviado: o código aparece nos Logs como `[EMAIL TESTE]`.
