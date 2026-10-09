@@ -8,7 +8,7 @@ App completo para Vercel + Neon Postgres, com WhatsApp automático (Z-API).
 ## O que é automático
 - **Escala completa:** quando a última vaga de um culto é preenchida, a escala (culto, data, hora, nomes e funções) vai para **todos os administradores**, no número do cadastro de cada um. Se alguém sair e ela lotar de novo, é enviada outra vez.
 - **Lembrete:** cada voluntário escalado recebe no **próprio número** uma mensagem a partir de 2 h antes do culto (horário de Brasília). Quem se inscreve dentro dessa janela recebe no ciclo seguinte.
-- **Recuperar senha:** o voluntário informa celular + data de nascimento do cadastro e define a nova senha (5 tentativas erradas bloqueiam por 15 min). Administradores não usam esse caminho: pedem a outro admin (aba Usuários → *Redefinir senha*).
+- **Recuperar senha:** em duas etapas — celular + data de nascimento conferidos no banco; se baterem, abre a tela de nova senha (5 erros por celular bloqueiam por 15 min). Vale também para administradores, que precisam ter a data preenchida em Painel → Meus dados.
 
 ## Publicar
 1. Suba esta pasta para um repositório no **GitHub**.
