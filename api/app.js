@@ -1,15 +1,14 @@
-import { randomInt } from 'node:crypto';
 import { q, garantirSchema } from '../lib/db.js';
 import { hash, confere, assinar, verificar } from '../lib/auth.js';
 import { enviar } from '../lib/whatsapp.js';
-import { AREAS, SLOT, normCel, normEmail, emailOk, Erro } from '../lib/util.js';
+import { AREAS, SLOT, normCel, Erro } from '../lib/util.js';
 import { enviarEscalaSeCompleta, msgLembrete } from '../lib/servico.js';
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/, HORA = /^\d{2}:\d{2}$/;
 const areasOk = (a) => Array.isArray(a) && a.length > 0 && a.every((x) => AREAS.includes(x));
 const admin = (u) => { if (!u.admin) throw new Erro('Acesso restrito a administradores.', 403); };
 const celOk = (c) => c.length >= 10 && c.length <= 11;
-const dup = (e) => { if (e.code === '23505') throw new Erro(/email/.test(String(e.constraint || e.message)) ? 'Este e-mail já está cadastrado.' : 'Este celular já está cadastrado.', 409); };
+const dup = (e) => { if (e.code === '23505') throw new Erro('Este celular já está cadastrado.', 409); };
 const SEL_USER = `select id,nome,coalesce(to_char(nasc,'YYYY-MM-DD'),'') nasc,cel,atua,deseja,is_admin admin,
   coalesce((select array_agg(treino_id) from presencas p where p.user_id=users.id),'{}'::int[]) presencas from users`;
 const tentarEscala = async (id) => { try { return await enviarEscalaSeCompleta(id); } catch (e) { console.error('escala:', e); return 'erro'; } };
