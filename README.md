@@ -8,7 +8,7 @@ App completo para Vercel + Neon Postgres, com WhatsApp automático (Z-API).
 ## O que é automático
 - **Escala completa:** quando a última vaga de um culto é preenchida, a escala (culto, data, hora, nomes e funções) vai para **todos os administradores**, no número do cadastro de cada um. Se alguém sair e ela lotar de novo, é enviada outra vez.
 - **Lembrete:** cada voluntário escalado recebe no **próprio número** uma mensagem a partir de 2 h antes do culto (horário de Brasília). Quem se inscreve dentro dessa janela recebe no ciclo seguinte.
-- **Recuperar senha:** o código de 6 dígitos vai por **e-mail** (vale 15 min, 5 tentativas). Quem não tiver acesso ao e-mail pede ao administrador (aba Usuários → *Redefinir senha*).
+- **Recuperar senha:** o voluntário informa celular + data de nascimento do cadastro e define a nova senha (5 tentativas erradas bloqueiam por 15 min). Administradores não usam esse caminho: pedem a outro admin (aba Usuários → *Redefinir senha*).
 
 ## Publicar
 1. Suba esta pasta para um repositório no **GitHub**.
@@ -31,9 +31,3 @@ App completo para Vercel + Neon Postgres, com WhatsApp automático (Z-API).
 - Z-API é paga e usa o WhatsApp comum: mantenha só mensagens esperadas e baixo volume (risco de bloqueio do número). Para outro serviço, edite apenas `lib/whatsapp.js`.
 - O GitHub pode atrasar execuções agendadas em alguns minutos, e pausa agendamentos de repositórios sem atividade por 60 dias; o cron-job.org é uma alternativa mais pontual.
 - Para rodar local: `npm i -g vercel`, `vercel dev` (com as variáveis em `.env`).
-
-## E-mail de recuperação (Gmail, grátis)
-1. Use uma conta Gmail da igreja/ministério. Em myaccount.google.com → Segurança, ative a **verificação em duas etapas**.
-2. Ainda em Segurança, procure **Senhas de app**, crie uma (nome: ADVEC) e copie as 16 letras.
-3. Na Vercel, crie `GMAIL_USER` (o e-mail completo) e `GMAIL_APP_PASSWORD` (as 16 letras). Faça *Redeploy*.
-4. Com `GMAIL_USER` e `GMAIL_APP_PASSWORD` preenchidos, o e-mail é enviado de verdade (não depende de `WHATSAPP_DRY_RUN`). Para só testar sem enviar, crie `EMAIL_DRY_RUN=1`: o código aparece nos Logs como `[EMAIL TESTE]`.
