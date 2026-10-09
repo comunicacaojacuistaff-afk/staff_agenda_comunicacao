@@ -2,7 +2,6 @@ import { randomInt } from 'node:crypto';
 import { q, garantirSchema } from '../lib/db.js';
 import { hash, confere, assinar, verificar } from '../lib/auth.js';
 import { enviar } from '../lib/whatsapp.js';
-import { enviarEmail, emailConfigurado } from '../lib/email.js';
 import { AREAS, SLOT, normCel, normEmail, emailOk, Erro } from '../lib/util.js';
 import { enviarEscalaSeCompleta, msgLembrete } from '../lib/servico.js';
 
@@ -11,7 +10,7 @@ const areasOk = (a) => Array.isArray(a) && a.length > 0 && a.every((x) => AREAS.
 const admin = (u) => { if (!u.admin) throw new Erro('Acesso restrito a administradores.', 403); };
 const celOk = (c) => c.length >= 10 && c.length <= 11;
 const dup = (e) => { if (e.code === '23505') throw new Erro(/email/.test(String(e.constraint || e.message)) ? 'Este e-mail já está cadastrado.' : 'Este celular já está cadastrado.', 409); };
-const SEL_USER = `select id,nome,coalesce(to_char(nasc,'YYYY-MM-DD'),'') nasc,cel,coalesce(email,'') email,atua,deseja,is_admin admin,
+const SEL_USER = `select id,nome,coalesce(to_char(nasc,'YYYY-MM-DD'),'') nasc,cel,atua,deseja,is_admin admin,
   coalesce((select array_agg(treino_id) from presencas p where p.user_id=users.id),'{}'::int[]) presencas from users`;
 const tentarEscala = async (id) => { try { return await enviarEscalaSeCompleta(id); } catch (e) { console.error('escala:', e); return 'erro'; } };
 
@@ -49,11 +48,11 @@ async function estado(u) {
 const PUBLICAS = {
   async register(b) {
     const nome = String(b.nome || '').trim(), cel = normCel(b.cel);
-    if (nome.length < 2 || !DATA.test(b.nasc) || !celOk(cel) || String(b.senha || '').length < 4 || !areasOk(b.atua) || !areasOk(b.deseja) || !emailOk(normEmail(b.email)))
+    if (nome.length < 2 || !DATA.test(b.nasc) || !celOk(cel) || String(b.senha || '').length < 4 || !areasOk(b.atua) || !areasOk(b.deseja))
       throw new Erro('Preencha todos os campos e marque ao menos uma área em cada pergunta.');
     try {
-      const [u] = await q('insert into users(nome,nasc,cel,senha_hash,atua,deseja,email) values($1,$2,$3,$4,$5,$6,$7) returning id',
-        [nome, b.nasc, cel, hash(b.senha), b.atua, b.deseja, normEmail(b.email)]);
+      const [u] = await q('insert into users(nome,nasc,cel,senha_hash,atua,deseja) values($1,$2,$3,$4,$5,$6) returning id',
+        [nome, b.nasc, cel, hash(b.senha), b.atua, b.deseja]);
       return { token: assinar(u.id) };
     } catch (e) { dup(e); throw e; }
   },
@@ -62,38 +61,24 @@ const PUBLICAS = {
     if (!u || !confere(b.senha || '', u.senha_hash)) throw new Erro('Celular ou senha incorretos.', 401);
     return { token: assinar(u.id) };
   },
-  // Recuperação por e-mail: código de 6 dígitos enviado ao e-mail do cadastro
-  async recSend(b) {
-    if (!emailConfigurado()) throw new Erro('O envio de e-mail não está disponível agora. Peça a um administrador para redefinir sua senha.', 503);
-    const email = normEmail(b.email);
-    if (!emailOk(email)) throw new Erro('Informe um e-mail válido.');
-    const [u] = await q('select nome,cel from users where lower(email)=$1', [email]);
-    if (u) {
-      const [rec] = await q(`select 1 from reset_codes where cel=$1 and expira > now() + interval '14 minutes'`, [u.cel]); // máx. 1 por minuto
-      if (!rec) {
-        const code = String(randomInt(100000, 1000000));
-        await q(`insert into reset_codes(cel,code_hash,expira) values($1,$2,now()+interval '15 minutes')
-          on conflict(cel) do update set code_hash=$2, expira=now()+interval '15 minutes', tentativas=0`, [u.cel, hash(code)]);
-        try {
-          await enviarEmail(email, 'Código para redefinir sua senha — Comunicação ADVEC',
-            `Olá, ${u.nome}!\n\nSeu código para redefinir a senha é: ${code}\n\nEle vale por 15 minutos. Se você não pediu, ignore este e-mail.\n\nComunicação ADVEC`);
-        } catch (e) { console.error('e-mail de recuperação:', e.message); }
-      }
-    }
-    return { ok: true }; // mesma resposta exista ou não o e-mail
-  },
-  async recConfirm(b) {
-    const email = normEmail(b.email);
+  // Recuperação sem serviço externo: celular + data de nascimento do cadastro (só voluntários).
+  // Máximo de 5 tentativas erradas por celular a cada 15 minutos.
+  async recSenha(b) {
+    const cel = normCel(b.cel);
+    if (!celOk(cel) || !DATA.test(b.nasc)) throw new Erro('Informe o celular com DDD e a data de nascimento.');
     if (String(b.senha || '').length < 4) throw new Erro('Use ao menos 4 caracteres na senha.');
-    const [u] = await q('select cel from users where lower(email)=$1', [email]);
-    const [r] = u ? await q('select code_hash,tentativas from reset_codes where cel=$1 and expira > now()', [u.cel]) : [];
-    if (!r || r.tentativas >= 5) throw new Erro('Código inválido ou expirado. Peça um novo.');
-    if (!confere(String(b.code || '').trim(), r.code_hash)) {
-      await q('update reset_codes set tentativas=tentativas+1 where cel=$1', [u.cel]);
-      throw new Erro('Código incorreto.');
+    const [lim] = await q('select tentativas from reset_codes where cel=$1 and expira > now()', [cel]);
+    if (lim && lim.tentativas >= 5) throw new Erro('Muitas tentativas. Tente de novo em 15 minutos.', 429);
+    const [u] = await q('select id from users where cel=$1 and nasc=$2::date and not is_admin', [cel, b.nasc]);
+    if (!u) {
+      await q(`insert into reset_codes(cel,code_hash,expira,tentativas) values($1,'-',now()+interval '15 minutes',1)
+        on conflict(cel) do update set
+          tentativas = case when reset_codes.expira > now() then reset_codes.tentativas+1 else 1 end,
+          expira = case when reset_codes.expira > now() then reset_codes.expira else now()+interval '15 minutes' end`, [cel]);
+      throw new Erro('Celular ou data de nascimento não conferem. Administradores devem pedir a outro administrador.');
     }
-    await q('update users set senha_hash=$2 where cel=$1', [u.cel, hash(b.senha)]);
-    await q('delete from reset_codes where cel=$1', [u.cel]);
+    await q('update users set senha_hash=$2 where id=$1', [u.id, hash(b.senha)]);
+    await q('delete from reset_codes where cel=$1', [cel]);
     return { ok: true };
   },
 };
@@ -101,10 +86,10 @@ const PUBLICAS = {
 const PRIVADAS = {
   state: (u) => estado(u),
   async salvarPerfil(u, b) {
-    const nome = String(b.nome || '').trim(), cel = normCel(b.cel), email = normEmail(b.email);
+    const nome = String(b.nome || '').trim(), cel = normCel(b.cel);
     const nasc = DATA.test(b.nasc) ? b.nasc : null;
-    if (nome.length < 2 || !celOk(cel) || !emailOk(email) || (!nasc && !u.admin)) throw new Erro('Preencha nome, nascimento, celular com DDD e um e-mail válido.');
-    try { await q('update users set nome=$2,nasc=$3,cel=$4,email=$5 where id=$1', [u.id, nome, nasc, cel, email]); }
+    if (nome.length < 2 || !celOk(cel) || (!nasc && !u.admin)) throw new Erro('Preencha nome, nascimento e celular com DDD.');
+    try { await q('update users set nome=$2,nasc=$3,cel=$4 where id=$1', [u.id, nome, nasc, cel]); }
     catch (e) { dup(e); throw e; }
     return { ok: true };
   },
