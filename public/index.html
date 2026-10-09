@@ -66,7 +66,7 @@ const dparts=d=>{const[y,m,dd]=d.split('-');return{y,m:MESES[+m-1],d:dd}};
 
 function Auth({say,onAuth}){
  const[mode,setMode]=useState('login');
- const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:'',senha2:'',rtok:''});
+ const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],senha2:'',rtok:''});
  const set=k=>e=>setF({...f,[k]:e.target.value});
  const entrar=async(acao,corpo)=>{try{const j=await api(acao,corpo);try{localStorage.setItem(TOK,j.token)}catch(e){}onAuth()}catch(e){say(e.message)}};
  const login=e=>{e.preventDefault();entrar('login',{cel:f.cel,senha:f.senha})};
@@ -149,8 +149,8 @@ function Lembretes({user,db}){
  useEffect(()=>{const t=setInterval(()=>setNow(new Date()),60000);return()=>clearInterval(t)},[]);
  const hoje=iso(now),am=iso(new Date(now.getTime()+864e5)),itens=[];
  const dia=d=>d===hoje?'Hoje':'Amanhã';
- db.cultos.forEach(c=>{const i=c.insc.find(x=>x.uid===user.id);if(i&&(c.data===hoje||c.data===am))itens.push({k:'c'+c.id,dia:dia(c.data),txt:c.nome+' às '+c.hora,det:'Sua função: '+i.role,q:new Date(c.data+'T'+c.hora),msg:'Lembrete: você está escalado no '+c.nome+' ('+fmt(c.data)+') às '+c.hora+' como '+i.role+'. Chegue com antecedência!'})});
- db.treinos.forEach(t=>{if(user.deseja.includes(t.area)&&(t.data===hoje||t.data===am))itens.push({k:'t'+t.id,dia:dia(t.data),txt:'Treinamento de '+t.area+' às '+t.hora,det:t.tema,q:new Date(t.data+'T'+t.hora),msg:'Lembrete: treinamento de '+t.area+' ('+fmt(t.data)+') às '+t.hora+' – '+t.tema+'.'})});
+ db.cultos.forEach(c=>{const i=c.insc.find(x=>x.uid===user.id);if(i&&(c.data===hoje||c.data===am))itens.push({k:'c'+c.id,dia:dia(c.data),txt:c.nome+' às '+c.hora,det:'Sua função: '+i.role,q:new Date(c.data+'T'+c.hora)})});
+ db.treinos.forEach(t=>{if(user.deseja.includes(t.area)&&(t.data===hoje||t.data===am))itens.push({k:'t'+t.id,dia:dia(t.data),txt:'Treinamento de '+t.area+' às '+t.hora,det:t.tema,q:new Date(t.data+'T'+t.hora)})});
  return <>{itens.filter(it=>it.q-now>-36e5).sort((a,b)=>a.q-b.q).map(it=>{const perto=it.q-now>0&&it.q-now<=72e5;
   return <div key={it.k} className="card" style={{borderLeft:'4px solid '+(perto?'var(--warn)':'var(--blue)'),padding:'12px 14px'}}>
    <div className="row"><b>{perto?'⏰ Falta menos de 2 horas':'📅 Você tem agenda'}</b><span className="pill">{it.dia}</span></div>
