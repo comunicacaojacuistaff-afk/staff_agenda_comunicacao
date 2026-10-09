@@ -66,7 +66,7 @@ const dparts=d=>{const[y,m,dd]=d.split('-');return{y,m:MESES[+m-1],d:dd}};
 
 function Auth({say,onAuth}){
  const[mode,setMode]=useState('login');
- const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:'',senha2:''});
+ const[f,setF]=useState({nome:'',nasc:'',cel:'',senha:'',atua:[],deseja:[],code:'',sent:'',senha2:'',rtok:''});
  const set=k=>e=>setF({...f,[k]:e.target.value});
  const entrar=async(acao,corpo)=>{try{const j=await api(acao,corpo);try{localStorage.setItem(TOK,j.token)}catch(e){}onAuth()}catch(e){say(e.message)}};
  const login=e=>{e.preventDefault();entrar('login',{cel:f.cel,senha:f.senha})};
@@ -74,9 +74,11 @@ function Auth({say,onAuth}){
   if(digits(f.cel).length<10)return say('Informe o celular com DDD.');
   if(!f.atua.length||!f.deseja.length)return say('Marque ao menos uma área em "já atua" e uma em "deseja atuar".');
   entrar('register',{nome:f.nome.trim(),nasc:f.nasc,cel:f.cel,senha:f.senha,atua:f.atua,deseja:f.deseja})};
- const rec=async e=>{e.preventDefault();
-  if(f.senha!==f.senha2)return say('As senhas não coincidem.');
-  try{await api('recSenha',{cel:f.cel,nasc:f.nasc,senha:f.senha});say('Senha atualizada. Entre com a nova senha.');setMode('login');setF({...f,senha:'',senha2:''})}catch(err){say(err.message)}};
+ const rec=async e=>{e.preventDefault();try{
+  if(!f.rtok){const j=await api('recVerificar',{cel:f.cel,nasc:f.nasc});setF({...f,rtok:j.token});say('Dados conferidos! Defina sua nova senha.')}
+  else{if(f.senha!==f.senha2)return say('As senhas não coincidem.');
+   await api('recSenha',{token:f.rtok,senha:f.senha});say('Senha atualizada. Entre com a nova senha.');setMode('login');setF({...f,rtok:'',senha:'',senha2:''})}
+ }catch(err){say(err.message)}};
  return <div className="wrap"><Logo h={140}/>
  {mode==='login'&&<form className="card" onSubmit={login}><h2>Login</h2>
   <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
@@ -92,12 +94,15 @@ function Auth({say,onAuth}){
   <Checks title="Qual área você deseja atuar (Treinamentos)?" value={f.deseja} onChange={v=>setF({...f,deseja:v})}/>
   <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">Concluir cadastro</button></div></form>}
 {mode==='rec'&&<form className="card" onSubmit={rec}><h2>Recuperar senha</h2>
-  <p className="mut" style={{marginTop:0,fontSize:'.85rem'}}>Informe o celular e a data de nascimento do seu cadastro.</p>
-  <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
-  <label>Data de nascimento</label><input type="date" value={f.nasc} onChange={set('nasc')} required/>
-  <label>Nova senha</label><Pass value={f.senha} onChange={set('senha')}/>
-  <label>Confirmar nova senha</label><Pass value={f.senha2} onChange={set('senha2')} ph="Confirmar senha"/>
-  <div className="row"><button type="button" className="btn g" onClick={()=>setMode('login')}>Voltar</button><button className="btn">Salvar nova senha</button></div></form>}
+  {!f.rtok?<>
+   <p className="mut" style={{marginTop:0,fontSize:'.85rem'}}>Informe o celular e a data de nascimento do seu cadastro.</p>
+   <label>Número de celular</label><input inputMode="tel" value={f.cel} onChange={set('cel')} required/>
+   <label>Data de nascimento</label><input type="date" value={f.nasc} onChange={set('nasc')} required/></>
+  :<>
+   <p className="ok" style={{marginTop:0}}>✓ Dados conferidos. Defina a nova senha.</p>
+   <label>Nova senha</label><Pass value={f.senha} onChange={set('senha')}/>
+   <label>Confirmar nova senha</label><Pass value={f.senha2} onChange={set('senha2')} ph="Confirmar senha"/></>}
+  <div className="row"><button type="button" className="btn g" onClick={()=>{setMode('login');setF({...f,rtok:'',senha:'',senha2:''})}}>Voltar</button><button className="btn">{f.rtok?'Salvar nova senha':'Verificar'}</button></div></form>}
  </div>}
 
 function PassForm({act,say}){
