@@ -36,4 +36,4 @@ App completo para Vercel + Neon Postgres, com WhatsApp automático (Z-API).
 1. Use uma conta Gmail da igreja/ministério. Em myaccount.google.com → Segurança, ative a **verificação em duas etapas**.
 2. Ainda em Segurança, procure **Senhas de app**, crie uma (nome: ADVEC) e copie as 16 letras.
 3. Na Vercel, crie `GMAIL_USER` (o e-mail completo) e `GMAIL_APP_PASSWORD` (as 16 letras). Faça *Redeploy*.
-4. Com `WHATSAPP_DRY_RUN=1` o e-mail não é enviado: o código aparece nos Logs como `[EMAIL TESTE]`. Para enviar de verdade, troque para `0` e faça *Redeploy*.
+4. Com `GMAIL_USER` e `GMAIL_APP_PASSWORD` preenchidos, o e-mail é enviado de verdade (não depende de `WHATSAPP_DRY_RUN`). Para só testar sem enviar, crie `EMAIL_DRY_RUN=1`: o código aparece nos Logs como `[EMAIL TESTE]`.
