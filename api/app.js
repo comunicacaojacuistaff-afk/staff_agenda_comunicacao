@@ -61,24 +61,35 @@ const PUBLICAS = {
     if (!u || !confere(b.senha || '', u.senha_hash)) throw new Erro('Celular ou senha incorretos.', 401);
     return { token: assinar(u.id) };
   },
-  // Recuperação sem serviço externo: celular + data de nascimento do cadastro (só voluntários).
-  // Máximo de 5 tentativas erradas por celular a cada 15 minutos.
-  async recSenha(b) {
+  // Passo 1 da recuperação: confere celular + data de nascimento. Se baterem, devolve um token
+  // de 10 min que só serve para trocar a senha desse usuário. 5 erros por celular = bloqueio de 15 min.
+  async recVerificar(b) {
     const cel = normCel(b.cel);
-    if (!celOk(cel) || !DATA.test(b.nasc)) throw new Erro('Informe o celular com DDD e a data de nascimento.');
-    if (String(b.senha || '').length < 4) throw new Erro('Use ao menos 4 caracteres na senha.');
+    if (!celOk(cel)) throw new Erro('Informe o celular com DDD.');
+    if (!DATA.test(b.nasc)) throw new Erro('Informe a data de nascimento.');
     const [lim] = await q('select tentativas from reset_codes where cel=$1 and expira > now()', [cel]);
     if (lim && lim.tentativas >= 5) throw new Erro('Muitas tentativas. Tente de novo em 15 minutos.', 429);
-    const [u] = await q('select id from users where cel=$1 and nasc=$2::date and not is_admin', [cel, b.nasc]);
-    if (!u) {
+    const [u] = await q('select id,is_admin,(nasc = $2::date) as ok from users where cel=$1', [cel, b.nasc]);
+    const falha = !u ? 'Número de celular não encontrado.'
+      : u.is_admin ? 'Administradores devem pedir a outro administrador para redefinir a senha.'
+      : !u.ok ? 'Data de nascimento incorreta para este número.' : null;
+    if (falha) {
       await q(`insert into reset_codes(cel,code_hash,expira,tentativas) values($1,'-',now()+interval '15 minutes',1)
         on conflict(cel) do update set
           tentativas = case when reset_codes.expira > now() then reset_codes.tentativas+1 else 1 end,
           expira = case when reset_codes.expira > now() then reset_codes.expira else now()+interval '15 minutes' end`, [cel]);
-      throw new Erro('Celular ou data de nascimento não conferem. Administradores devem pedir a outro administrador.');
+      throw new Erro(falha);
     }
-    await q('update users set senha_hash=$2 where id=$1', [u.id, hash(b.senha)]);
     await q('delete from reset_codes where cel=$1', [cel]);
+    return { token: assinar(u.id, 'reset', 10 * 60e3) };
+  },
+  // Passo 2: troca a senha de quem passou no passo 1 (sem o token, nada é alterado)
+  async recSenha(b) {
+    const uid = verificar(b.token, 'reset');
+    if (!uid) throw new Erro('Verificação expirada. Informe o celular e a data de nascimento de novo.');
+    if (String(b.senha || '').length < 4) throw new Erro('Use ao menos 4 caracteres na senha.');
+    const r = await q('update users set senha_hash=$2 where id=$1 and not is_admin returning id', [uid, hash(b.senha)]);
+    if (!r.length) throw new Erro('Não foi possível alterar a senha.');
     return { ok: true };
   },
 };
